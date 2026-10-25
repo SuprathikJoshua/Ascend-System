@@ -1,0 +1,44 @@
+'use client';
+
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { LayoutDashboard, Code2, Globe, Settings } from 'lucide-react';
+
+const LINKS = [
+  { href: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/dsa', label: 'DSA', icon: Code2 },
+  { href: '/webdev', label: 'Web Dev', icon: Globe },
+  { href: '/settings', label: 'Settings', icon: Settings },
+];
+
+export default function NavBar() {
+  const pathname = usePathname();
+
+  return (
+    <nav className="fixed top-0 left-0 right-0 z-50 h-16 glass border-b border-gray-800 flex items-center px-6 gap-2">
+      <span className="text-violet-400 font-bold text-lg tracking-tight mr-6 flex items-center gap-2">
+        <span className="text-xl">⚡</span>
+        PrepSystem
+      </span>
+      <div className="flex items-center gap-1">
+        {LINKS.map(({ href, label, icon: Icon }) => {
+          const isActive = pathname ? (href === '/' ? pathname === '/' : pathname.startsWith(href)) : false;
+          return (
+            <Link
+              key={href}
+              href={href}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                isActive
+                  ? 'bg-violet-600/20 text-violet-300 border border-violet-500/30'
+                  : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/60'
+              }`}
+            >
+              <Icon size={15} />
+              {label}
+            </Link>
+          );
+        })}
+      </div>
+    </nav>
+  );
+}
