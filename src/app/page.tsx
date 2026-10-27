@@ -8,6 +8,7 @@ import {
   getCombinedStreak, daysUntil, linearPlanFraction, getSetting, setSetting, incrementDone,
   getDsaRevisionTasks, getDsaWeeklyRevisionReview,
   markTodayWebdev, toLocalDateString, isWebDevPhaseLocked, exportData,
+  getAiWeeks,
   type DsaTopic, type WebDevTopic, type DsaQuotaDetails, type WebdevTargetDetails,
 } from '@/lib/storage';
 import {
@@ -18,6 +19,7 @@ import {
 import Link from 'next/link';
 import ProofModal from '@/components/webdev/ProofModal';
 import { DSA_TOPIC_ORDER, dsaTopicPhase } from '@/lib/dsaPlan';
+import { getAiDashboardNextStep, getAiWeekItemProgress } from '@/lib/aiProgress';
 
 const DSA_TOPIC_INDEX = new Map(DSA_TOPIC_ORDER.map((name, index) => [name, index]));
 
@@ -39,6 +41,7 @@ export default function DashboardPage() {
   const todayStr = toLocalDateString(new Date());
   const todayStreak = useLiveQuery(() => getTodayStreakDay(todayStr), [todayStr]);
   const dsaRevisions = useLiveQuery(() => getDsaRevisionRecords(), []);
+  const aiWeeks = useLiveQuery(() => getAiWeeks(), []);
 
   useEffect(() => {
     seedIfEmpty().then(() => setSeeded(true));
@@ -64,6 +67,7 @@ export default function DashboardPage() {
       'dsa_start', 'dsa_solve_deadline', 'dsa_final_deadline', 'webdev_deadline',
       'dsa_days', 'dsa_daily_minutes', 'webdev_days', 'webdev_daily_minutes',
       'last_exported_at',
+      'ai_status',
     ];
     const pairs = await Promise.all(keys.map(k => getSetting(k).then(v => [k, v] as [string, string])));
     setSettings(Object.fromEntries(pairs));
@@ -71,7 +75,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (seeded) refresh();
-  }, [seeded, topics, webdevTopics, dsaRevisions, refresh]);
+  }, [seeded, topics, webdevTopics, dsaRevisions, aiWeeks, refresh]);
 
   // Find current DSA phase (first incomplete phase topic)
   const currentPhaseTopic = topics?.find(t => t.done < t.total) ?? null;
@@ -90,6 +94,12 @@ export default function DashboardPage() {
   const wdTotal = webdevTopics?.length ?? 0;
   const wdDone = webdevTopics?.filter(t => t.status === 'done').length ?? 0;
   const wdPct = wdTotal > 0 ? wdDone / wdTotal : 0;
+  const aiItemProgress = (aiWeeks ?? []).reduce((progress, week) => {
+    const weekProgress = getAiWeekItemProgress(week);
+    return { checked: progress.checked + weekProgress.checked, total: progress.total + weekProgress.total };
+  }, { checked: 0, total: 0 });
+  const aiStatus = settings.ai_status || 'parked';
+  const aiNextStep = getAiDashboardNextStep(settings.ai_status || 'parked', aiWeeks ?? []);
 
   // Ahead/behind DSA linear pacing
   const dsaLinear = settings.dsa_start && settings.dsa_solve_deadline
@@ -210,6 +220,14 @@ export default function DashboardPage() {
             </div>
           </div>
         )}
+        {wdTotal > 0 && wdDone === wdTotal && (
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-xl border border-cyan-500/30 bg-cyan-500/10 p-4 text-cyan-200">
+            <p className="text-sm font-medium">Web dev finished. Activate AI Internship in Settings?</p>
+            <Link href="/settings" className="min-h-11 shrink-0 rounded-lg border border-cyan-500/30 px-3 flex items-center justify-center text-xs font-medium hover:bg-cyan-500/10">
+              Open Settings <ArrowRight size={13} className="ml-1" />
+            </Link>
+          </div>
+        )}
       </div>
 
       {/* Header */}
@@ -245,6 +263,29 @@ export default function DashboardPage() {
           <span className="text-xs text-gray-500">day combined streak</span>
         </div>
       </div>
+
+      {aiNextStep && (
+        <section className="glass rounded-xl border border-cyan-500/25 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-cyan-300">Next step · {aiNextStep.week.title}</h2>
+            <p className="mt-1 text-sm text-gray-200">{aiNextStep.step.label}</p>
+          </div>
+          <Link href={`/ai?week=${aiNextStep.week.week}`} className="min-h-11 shrink-0 rounded-lg border border-cyan-500/30 px-3 flex items-center justify-center gap-2 text-sm text-cyan-300 hover:bg-cyan-500/10">
+            Open AI Internship <ChevronRight size={15} />
+          </Link>
+        </section>
+      )}
+      {aiStatus === 'parked' && (
+        <Link href="/ai" className="glass block rounded-xl border border-gray-800 p-4 hover:border-cyan-500/30 transition-colors">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold text-gray-200">AI Internship - parked</h2>
+            <span className="text-xs tabular-nums text-gray-500">{aiItemProgress.checked}/{aiItemProgress.total} items</span>
+          </div>
+          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-gray-800">
+            <div className="h-full rounded-full bg-cyan-400" style={{ width: `${aiItemProgress.total ? aiItemProgress.checked / aiItemProgress.total * 100 : 0}%` }} />
+          </div>
+        </Link>
+      )}
 
       {/* Weekly review panel (Sunday or preview) */}
       {showReview && (

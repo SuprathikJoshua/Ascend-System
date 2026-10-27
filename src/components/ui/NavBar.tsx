@@ -2,12 +2,13 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Code2, Globe, Settings } from 'lucide-react';
+import { LayoutDashboard, Code2, Globe, Settings, Sparkles } from 'lucide-react';
 
 const LINKS = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/dsa', label: 'DSA', icon: Code2 },
   { href: '/webdev', label: 'Web Dev', icon: Globe },
+  { href: '/ai', label: 'AI', icon: Sparkles },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 

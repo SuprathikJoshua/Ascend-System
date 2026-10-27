@@ -28,6 +28,7 @@ export default function SettingsPage() {
     'webdev_deadline',
     'webdev_days',
     'webdev_daily_minutes',
+    'ai_status',
     'last_exported_at',
   ];
 
@@ -271,6 +272,20 @@ export default function SettingsPage() {
             Target points per day = remaining difficulty-weighted points ÷ remaining active webdev days.
           </p>
         </div>
+      </div>
+
+      <div className="glass rounded-xl p-5 space-y-3">
+        <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">AI Internship</h2>
+        <label htmlFor="ai-status" className="block text-xs text-gray-400">Status</label>
+        <select
+          id="ai-status"
+          value={values.ai_status || 'parked'}
+          onChange={event => handleChange('ai_status', event.target.value)}
+          className="min-h-11 w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-200 focus:border-cyan-500 focus:outline-none"
+        >
+          <option value="parked">Parked</option>
+          <option value="active">Active</option>
+        </select>
       </div>
 
       {/* Save Button */}

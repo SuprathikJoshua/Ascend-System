@@ -1,5 +1,6 @@
 import Dexie, { type EntityTable } from 'dexie';
 import { currentDsaWeek, dsaWeekKey } from './dsaPlan';
+import { AI_WEEK_SEED } from './aiPlan';
 
 // ── DSA ──────────────────────────────────────────────────────────────────────
 
@@ -52,6 +53,32 @@ export interface StreakDay {
   webdevDone: boolean;
 }
 
+export interface AiPlanItem {
+  id: string;
+  label: string;
+  checked: boolean;
+}
+
+export interface AiResource {
+  label: string;
+  url?: string;
+}
+
+export interface AiWeek {
+  id?: number;
+  week: number;
+  title: string;
+  goal: string;
+  resources: AiResource[];
+  steps: AiPlanItem[];
+  projectName: string;
+  projectItems: AiPlanItem[];
+  proofLink: string;
+  resultsNotes: string;
+}
+
+export type AiWeekEditableFields = Pick<AiWeek, 'proofLink' | 'resultsNotes'>;
+
 export type DsaRevisionPass = 'R1' | 'R2' | 'Final';
 export type DsaRevisionStatus = 'open' | 'done' | 'collapsed';
 
@@ -76,6 +103,7 @@ class PrepDB extends Dexie {
   settings!: EntityTable<AppSettings, 'id'>;
   streakDays!: EntityTable<StreakDay, 'id'>;
   dsaRevisions!: EntityTable<DsaRevisionTask, 'id'>;
+  aiWeeks!: EntityTable<AiWeek, 'id'>;
 
   constructor() {
     super('PrepDashboard');
@@ -118,6 +146,14 @@ class PrepDB extends Dexie {
     }).upgrade(async transaction => {
       await transaction.table('settings').where('key').anyOf('graph_revision_per_week', 'graph_flagged_total').delete();
     });
+    this.version(5).stores({
+      dsaTopics: '++id, name',
+      webdevTopics: '++id, phase, status, practical, order',
+      settings: '++id, &key',
+      streakDays: '++id, &date',
+      dsaRevisions: '++id, topicName, pass, dueDate, status, completedAt, collapsedAt',
+      aiWeeks: '++id, &week',
+    });
   }
 }
 
@@ -148,6 +184,12 @@ const DSA_SEED: Omit<DsaTopic, 'id'>[] = [
   { name: 'Maths', total: 3, done: 0 },
 ];
 
+const AI_WEEK_DATA_SEED: Omit<AiWeek, 'id'>[] = AI_WEEK_SEED.map(week => ({
+  ...week,
+  steps: week.steps.map((label, index) => ({ id: `w${week.week}-step-${index + 1}`, label, checked: false })),
+  projectItems: week.projectItems.map((label, index) => ({ id: `w${week.week}-project-${index + 1}`, label, checked: false })),
+}));
+
 const DEFAULT_SETTINGS: { key: string; value: string }[] = [
   { key: 'dsa_start', value: '2026-10-24' },
   { key: 'dsa_solve_deadline', value: '2027-02-13' },
@@ -157,6 +199,7 @@ const DEFAULT_SETTINGS: { key: string; value: string }[] = [
   { key: 'webdev_deadline', value: '2027-01-31' },
   { key: 'webdev_days', value: 'Tuesday,Thursday,Saturday' },
   { key: 'webdev_daily_minutes', value: '' },
+  { key: 'ai_status', value: 'parked' },
   { key: 'last_exported_at', value: '' },
 ];
 
@@ -167,7 +210,7 @@ let seedPromise: Promise<void> | null = null;
 export function seedIfEmpty(): Promise<void> {
   if (seedPromise) return seedPromise;
   seedPromise = (async () => {
-    await db.transaction('rw', [db.dsaTopics, db.webdevTopics, db.settings, db.dsaRevisions], async () => {
+    await db.transaction('rw', [db.dsaTopics, db.webdevTopics, db.settings, db.dsaRevisions, db.aiWeeks], async () => {
       // 1. DSA Topics
       const allTopics = await db.dsaTopics.toArray();
       if (allTopics.length === 0) {
@@ -189,6 +232,10 @@ export function seedIfEmpty(): Promise<void> {
       }
 
       await seedFinalRevisionTasks();
+
+      if ((await db.aiWeeks.count()) === 0) {
+        await db.aiWeeks.bulkAdd(AI_WEEK_DATA_SEED);
+      }
 
       // 2. Web Dev Topics
       const allWdTopics = await db.webdevTopics.toArray();
@@ -273,6 +320,23 @@ export async function setSetting(key: string, value: string): Promise<void> {
   } else {
     await db.settings.add({ key, value });
   }
+}
+
+export async function getAiWeeks(): Promise<AiWeek[]> {
+  return db.aiWeeks.orderBy('week').toArray();
+}
+
+export async function setAiWeekItemChecked(weekNumber: number, itemId: string, checked: boolean): Promise<void> {
+  const week = await db.aiWeeks.where('week').equals(weekNumber).first();
+  if (!week?.id) return;
+  const steps = week.steps.map(item => item.id === itemId ? { ...item, checked } : item);
+  const projectItems = week.projectItems.map(item => item.id === itemId ? { ...item, checked } : item);
+  await db.aiWeeks.update(week.id, { steps, projectItems });
+}
+
+export async function updateAiWeekFields(weekNumber: number, changes: Partial<AiWeekEditableFields>): Promise<void> {
+  const week = await db.aiWeeks.where('week').equals(weekNumber).first();
+  if (week?.id !== undefined) await db.aiWeeks.update(week.id, changes);
 }
 
 export async function incrementDone(topicId: number): Promise<void> {
@@ -679,15 +743,16 @@ export function isWebDevPhaseLocked(phase: number, allTopics: WebDevTopic[]): bo
 }
 
 export async function exportData(): Promise<string> {
-  const [dsaTopics, webdevTopics, settings, streakDays, dsaRevisions] = await Promise.all([
+  const [dsaTopics, webdevTopics, settings, streakDays, dsaRevisions, aiWeeks] = await Promise.all([
     db.dsaTopics.toArray(),
     db.webdevTopics.toArray(),
     db.settings.toArray(),
     db.streakDays.toArray(),
     db.dsaRevisions.toArray(),
+    db.aiWeeks.orderBy('week').toArray(),
   ]);
   const activeSettings = settings.filter(setting => setting.key !== 'graph_revision_per_week' && setting.key !== 'graph_flagged_total');
-  return JSON.stringify({ dsaTopics, webdevTopics, settings: activeSettings, streakDays, dsaRevisions }, null, 2);
+  return JSON.stringify({ dsaTopics, webdevTopics, settings: activeSettings, streakDays, dsaRevisions, aiWeeks }, null, 2);
 }
 
 export async function importData(json: string): Promise<void> {
@@ -704,17 +769,33 @@ export async function importData(json: string): Promise<void> {
   const importedSettings = Array.isArray(data.settings)
     ? data.settings.filter((setting: AppSettings) => setting.key !== 'graph_revision_per_week' && setting.key !== 'graph_flagged_total')
     : [];
-  await db.transaction('rw', [db.dsaTopics, db.webdevTopics, db.settings, db.streakDays, db.dsaRevisions], async () => {
+  const existingAiStatus = importedSettings.find((setting: AppSettings) => setting.key === 'ai_status');
+  if (existingAiStatus) {
+    if (existingAiStatus.value !== 'active' && existingAiStatus.value !== 'parked') existingAiStatus.value = 'parked';
+  } else {
+    importedSettings.push({ key: 'ai_status', value: 'parked' });
+  }
+  const importedAiWeeks: Omit<AiWeek, 'id'>[] = Array.isArray(data.aiWeeks) && data.aiWeeks.length > 0
+    ? data.aiWeeks
+    : AI_WEEK_DATA_SEED.map(week => ({
+        ...week,
+        resources: week.resources.map(resource => ({ ...resource })),
+        steps: week.steps.map(item => ({ ...item })),
+        projectItems: week.projectItems.map(item => ({ ...item })),
+      }));
+  await db.transaction('rw', [db.dsaTopics, db.webdevTopics, db.settings, db.streakDays, db.dsaRevisions, db.aiWeeks], async () => {
     await db.dsaTopics.clear();
     await db.webdevTopics.clear();
     await db.settings.clear();
     await db.streakDays.clear();
     await db.dsaRevisions.clear();
+    await db.aiWeeks.clear();
     if (dsaTopics.length) await db.dsaTopics.bulkAdd(dsaTopics);
     if (data.webdevTopics?.length) await db.webdevTopics.bulkAdd(data.webdevTopics);
     if (importedSettings.length) await db.settings.bulkAdd(importedSettings);
     if (data.streakDays?.length) await db.streakDays.bulkAdd(data.streakDays);
     if (data.dsaRevisions?.length) await db.dsaRevisions.bulkAdd(data.dsaRevisions);
+    if (importedAiWeeks.length) await db.aiWeeks.bulkAdd(importedAiWeeks);
   });
   await seedFinalRevisionTasks();
 }

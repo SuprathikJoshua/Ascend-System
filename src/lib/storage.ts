@@ -3,6 +3,7 @@ import {
   decrementDone as decrementDsaTopic,
   exportData as exportLocalData,
   getCombinedStreak as getLocalCombinedStreak,
+  getAiWeeks as getLocalAiWeeks,
   getDailyNewQuota as getLocalDailyNewQuota,
   getDailyNewQuotaDetails as getLocalDailyNewQuotaDetails,
   getDailyWebdevTarget as getLocalDailyWebdevTarget,
@@ -19,19 +20,25 @@ import {
   resetDsaToSeed as resetLocalDsaToSeed,
   resetWebdevToSeed as resetLocalWebdevToSeed,
   seedIfEmpty as seedLocalIfEmpty,
+  setAiWeekItemChecked as setLocalAiWeekItemChecked,
   setDsaTopicDone as setLocalDsaTopicDone,
   setSetting as setLocalSetting,
+  updateAiWeekFields as updateLocalAiWeekFields,
   daysUntil,
   linearPlanFraction,
   toLocalDateString,
   type DsaRevisionTask,
   type DsaTopic,
+  type AiWeek,
   type StreakDay,
   type WebDevTopic,
 } from './localDb';
 
 export type {
   AppSettings,
+  AiPlanItem,
+  AiResource,
+  AiWeek,
   DsaQuotaDetails,
   DsaRevisionPass,
   DsaRevisionStatus,
@@ -109,6 +116,18 @@ export function markStatePending(): void {
 
 export async function getDsaTopics(): Promise<DsaTopic[]> {
   return db.dsaTopics.toArray();
+}
+
+export function getAiWeeks(): Promise<AiWeek[]> {
+  return getLocalAiWeeks();
+}
+
+export function setAiWeekItemChecked(weekNumber: number, itemId: string, checked: boolean): Promise<void> {
+  return write(() => setLocalAiWeekItemChecked(weekNumber, itemId, checked));
+}
+
+export function updateAiWeekFields(weekNumber: number, changes: Partial<Pick<AiWeek, 'proofLink' | 'resultsNotes'>>): Promise<void> {
+  return write(() => updateLocalAiWeekFields(weekNumber, changes));
 }
 
 export async function getWebDevTopics(): Promise<WebDevTopic[]> {
