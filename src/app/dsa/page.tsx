@@ -2,12 +2,12 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { BookOpen, Check, Clock3, Minus, Plus, RotateCcw, Target } from 'lucide-react';
+import { BookOpen, Clock3, Minus, Plus, RotateCcw, Target } from 'lucide-react';
 import {
-  daysUntil, decrementDone, getDsaTopics, getDsaChecklistItems, getDsaRevisionRecords,
-  updateDsaChecklistItem, updateDsaRevisionTask, getDailyNewQuotaDetails, getDsaRevisionTasks, getDsaWeekProgress,
+  daysUntil, decrementDone, getDsaTopics, getDsaRevisionRecords,
+  updateDsaRevisionTask, getDailyNewQuotaDetails, getDsaRevisionTasks, getDsaWeekProgress,
   incrementDone, incrementDsaRevision, markDsaTopicComplete, seedIfEmpty,
-  setDsaTopicDone, setGraphRevisionChecklistItem, toLocalDateString, type DsaChecklistItem, type DsaRevisionTask, type DsaTopic,
+  setDsaTopicDone, toLocalDateString, type DsaRevisionTask, type DsaTopic,
 } from '@/lib/storage';
 import { DSA_PHASE_PLAN, DSA_TOPIC_ORDER } from '@/lib/dsaPlan';
 
@@ -26,7 +26,6 @@ export default function DsaPage() {
     () => getDsaTopics().then(rows => rows.sort((a, b) => (TOPIC_ORDER.get(a.name) ?? 999) - (TOPIC_ORDER.get(b.name) ?? 999))),
     [],
   );
-  const checklistItems = useLiveQuery(() => getDsaChecklistItems(), []);
   const revisionTasks = useLiveQuery(() => getDsaRevisionRecords(), []);
 
   useEffect(() => {
@@ -68,16 +67,6 @@ export default function DsaPage() {
   const weeksLeft = currentPhase ? Math.max(1, currentPhase.endWeek - weekProgress.week + 1) : 1;
   const thisWeekTarget = currentPhase ? currentPhaseLeft / weeksLeft : 0;
 
-  const updateChecklist = async (item: DsaChecklistItem, changes: Partial<DsaChecklistItem>) => {
-    if (item.id === undefined) return;
-    if (item.list === 'graph-revision' && typeof changes.done === 'boolean') {
-      await setGraphRevisionChecklistItem(item, changes.done);
-      if (Object.hasOwn(changes, 'label')) await updateDsaChecklistItem(item.id, { label: changes.label });
-      return;
-    }
-    await updateDsaChecklistItem(item.id, changes);
-  };
-
   const saveDoneCount = async (topic: DsaTopic) => {
     const done = Number(doneDraft);
     if (!Number.isInteger(done) || done < 0 || done > topic.total) {
@@ -89,7 +78,7 @@ export default function DsaPage() {
     setDoneError('');
   };
 
-  if (!seeded || !topics || !checklistItems || !revisionTasks) {
+  if (!seeded || !topics || !revisionTasks) {
     return <div className="flex items-center justify-center h-64 text-gray-500 animate-pulse">Loading DSA tracker…</div>;
   }
 
@@ -181,8 +170,7 @@ export default function DsaPage() {
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-sm font-medium text-gray-200">{name}</span>
-                        {REDO_TOPICS.has(name) && <Tag color="rose">redo</Tag>}
-                        {name === 'Graphs' && <Tag color="amber">revise</Tag>}
+                        {REDO_TOPICS.has(name) && <Tag>redo</Tag>}
                       </div>
                       <div className="text-xs text-gray-500 mt-1 flex items-center gap-1.5">
                         {editingTopicId === topic.id ? (
@@ -238,19 +226,6 @@ export default function DsaPage() {
         ))}
       </section>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Checklist
-          title="Graph leftovers (7 items)"
-          items={checklistItems.filter(item => item.list === 'graph-leftovers').sort((a, b) => a.order - b.order)}
-          onUpdate={updateChecklist}
-        />
-        <Checklist
-          title="Graph revision (20 items)"
-          items={checklistItems.filter(item => item.list === 'graph-revision').sort((a, b) => a.order - b.order)}
-          onUpdate={updateChecklist}
-        />
-      </div>
-
       <section className="glass rounded-xl p-5 space-y-4">
         <div className="flex items-center gap-2"><RotateCcw size={18} className="text-cyan-400" /><h2 className="text-lg font-semibold text-gray-100">Revision tasks</h2></div>
         <RevisionGroup title="Due today" tasks={dueToday} />
@@ -266,32 +241,8 @@ function Stat({ label, value }: { label: string; value: string }) {
   return <div><div className="text-2xl leading-none font-bold text-violet-300 tabular-nums">{value}</div><div className="text-[11px] text-gray-500 mt-1">{label}</div></div>;
 }
 
-function Tag({ color, children }: { color: 'rose' | 'amber'; children: React.ReactNode }) {
-  const classes = color === 'rose' ? 'text-rose-300 bg-rose-500/10 border-rose-500/30' : 'text-amber-300 bg-amber-500/10 border-amber-500/30';
-  return <span className={`text-[10px] uppercase rounded border px-1.5 py-0.5 ${classes}`}>{children}</span>;
-}
-
-function Checklist({ title, items, onUpdate }: { title: string; items: DsaChecklistItem[]; onUpdate: (item: DsaChecklistItem, changes: Partial<DsaChecklistItem>) => Promise<void> }) {
-  return (
-    <section className="glass rounded-xl p-5">
-      <h2 className="text-sm font-semibold text-gray-200 mb-3">{title}</h2>
-      <ul className="space-y-2">
-        {items.map(item => (
-          <li key={item.id} className="flex items-center gap-2">
-            <button aria-label={`${item.done ? 'Uncheck' : 'Check'} ${item.label}`} onClick={() => onUpdate(item, { done: !item.done })} className={`min-h-11 min-w-11 shrink-0 rounded border flex items-center justify-center ${item.done ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300' : 'border-gray-700 text-transparent'}`}><Check size={13} /></button>
-            <span className="text-[11px] text-gray-600 w-5 text-right tabular-nums">{item.order + 1}</span>
-            <input
-              aria-label={`${title} item ${item.order + 1} label`}
-              key={`${item.id}-${item.label}`}
-              defaultValue={item.label}
-              onBlur={event => event.target.value.trim() && event.target.value.trim() !== item.label && onUpdate(item, { label: event.target.value.trim() })}
-              className={`w-full bg-transparent border-b border-transparent hover:border-gray-700 focus:border-violet-500 focus:outline-none text-sm py-1 ${item.done ? 'text-gray-600 line-through' : 'text-gray-300'}`}
-            />
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
+function Tag({ children }: { children: React.ReactNode }) {
+  return <span className="text-[10px] uppercase rounded border px-1.5 py-0.5 text-rose-300 bg-rose-500/10 border-rose-500/30">{children}</span>;
 }
 
 function RevisionGroup({ title, tasks }: { title: string; tasks: DsaRevisionTask[] }) {
@@ -310,17 +261,48 @@ function RevisionGroup({ title, tasks }: { title: string; tasks: DsaRevisionTask
 
 function RevisionRow({ task }: { task: DsaRevisionTask }) {
   const [whichProblems, setWhichProblems] = useState(task.whichProblems ?? '');
+  const [targetDraft, setTargetDraft] = useState(String(task.target));
+  const [targetError, setTargetError] = useState('');
   useEffect(() => setWhichProblems(task.whichProblems ?? ''), [task.whichProblems]);
+  useEffect(() => setTargetDraft(String(task.target)), [task.target]);
+
+  const saveTarget = async () => {
+    const target = Number(targetDraft);
+    if (!Number.isInteger(target) || target < 1 || target > 50) {
+      setTargetError('Enter a whole number from 1 to 50.');
+      return;
+    }
+    if (task.id !== undefined && target !== task.target) await updateDsaRevisionTask(task.id, { target });
+    setTargetError('');
+  };
+
   return (
     <div className="grid grid-cols-1 sm:grid-cols-[minmax(100px,1fr)_40px_100px_auto_minmax(120px,1.2fr)] items-center gap-2 rounded-lg bg-gray-900/40 border border-gray-800 px-3 py-3 sm:py-2">
       <span className="min-w-0 text-sm text-gray-200 truncate">{task.topicName}</span>
       <span className="text-xs text-cyan-300">{task.pass}</span>
       <span className="text-xs text-gray-500">{task.dueDate}</span>
       <div className="flex items-center gap-2">
-        <span className={`text-xs tabular-nums ${task.status === 'collapsed' ? 'text-rose-300' : 'text-gray-400'}`}>{task.status === 'collapsed' ? 'collapsed · ' : ''}{task.completed}/{task.target}</span>
+        <span className={`text-xs tabular-nums ${task.status === 'collapsed' ? 'text-rose-300' : 'text-gray-400'}`}>{task.status === 'collapsed' ? 'collapsed · ' : ''}{task.completed}/</span>
+        <input
+          aria-label={`${task.topicName} ${task.pass} revision target`}
+          type="number"
+          min={1}
+          max={50}
+          step={1}
+          aria-invalid={Boolean(targetError)}
+          value={targetDraft}
+          onChange={event => { setTargetDraft(event.target.value); setTargetError(''); }}
+          onBlur={() => void saveTarget()}
+          onKeyDown={event => {
+            if (event.key === 'Enter') { event.preventDefault(); void saveTarget(); }
+            if (event.key === 'Escape') { setTargetDraft(String(task.target)); setTargetError(''); }
+          }}
+          className="min-h-11 w-14 rounded border border-gray-800 bg-gray-950 px-1 text-xs text-gray-300 focus:outline-none focus:border-cyan-500"
+        />
         {task.status !== 'done' && task.id !== undefined && (
           <button aria-label={`Add one ${task.pass} re-solve for ${task.topicName}`} onClick={() => incrementDsaRevision(task.id!)} className="min-h-11 min-w-11 rounded bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/20 flex items-center justify-center"><Plus size={13} /></button>
         )}
+        {targetError && <span role="alert" className="basis-full text-xs text-rose-300">{targetError}</span>}
       </div>
       <input
         value={whichProblems}

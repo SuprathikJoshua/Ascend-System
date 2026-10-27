@@ -1,5 +1,5 @@
 import Dexie, { type EntityTable } from 'dexie';
-import { GRAPH_LEFTOVERS, GRAPH_REVISION_ITEMS, currentDsaWeek, dsaWeekKey } from './dsaPlan';
+import { currentDsaWeek, dsaWeekKey } from './dsaPlan';
 
 // ── DSA ──────────────────────────────────────────────────────────────────────
 
@@ -52,14 +52,6 @@ export interface StreakDay {
   webdevDone: boolean;
 }
 
-export interface DsaChecklistItem {
-  id?: number;
-  list: 'graph-leftovers' | 'graph-revision';
-  label: string;
-  done: boolean;
-  order: number;
-}
-
 export type DsaRevisionPass = 'R1' | 'R2' | 'Final';
 export type DsaRevisionStatus = 'open' | 'done' | 'collapsed';
 
@@ -83,7 +75,6 @@ class PrepDB extends Dexie {
   webdevTopics!: EntityTable<WebDevTopic, 'id'>;
   settings!: EntityTable<AppSettings, 'id'>;
   streakDays!: EntityTable<StreakDay, 'id'>;
-  dsaChecklistItems!: EntityTable<DsaChecklistItem, 'id'>;
   dsaRevisions!: EntityTable<DsaRevisionTask, 'id'>;
 
   constructor() {
@@ -117,6 +108,16 @@ class PrepDB extends Dexie {
       dsaChecklistItems: '++id, list, order',
       dsaRevisions: '++id, topicName, pass, dueDate, status, completedAt, collapsedAt',
     });
+    this.version(4).stores({
+      dsaTopics: '++id, name',
+      webdevTopics: '++id, phase, status, practical, order',
+      settings: '++id, &key',
+      streakDays: '++id, &date',
+      dsaChecklistItems: null,
+      dsaRevisions: '++id, topicName, pass, dueDate, status, completedAt, collapsedAt',
+    }).upgrade(async transaction => {
+      await transaction.table('settings').where('key').anyOf('graph_revision_per_week', 'graph_flagged_total').delete();
+    });
   }
 }
 
@@ -147,11 +148,6 @@ const DSA_SEED: Omit<DsaTopic, 'id'>[] = [
   { name: 'Maths', total: 3, done: 0 },
 ];
 
-const DSA_CHECKLIST_SEED: Omit<DsaChecklistItem, 'id'>[] = [
-  ...GRAPH_LEFTOVERS.map((label, index) => ({ list: 'graph-leftovers' as const, label, done: false, order: index })),
-  ...GRAPH_REVISION_ITEMS.map((label, index) => ({ list: 'graph-revision' as const, label, done: false, order: index })),
-];
-
 const DEFAULT_SETTINGS: { key: string; value: string }[] = [
   { key: 'dsa_start', value: '2026-10-24' },
   { key: 'dsa_solve_deadline', value: '2027-02-13' },
@@ -161,8 +157,6 @@ const DEFAULT_SETTINGS: { key: string; value: string }[] = [
   { key: 'webdev_deadline', value: '2027-01-31' },
   { key: 'webdev_days', value: 'Tuesday,Thursday,Saturday' },
   { key: 'webdev_daily_minutes', value: '' },
-  { key: 'graph_revision_per_week', value: '3' },
-  { key: 'graph_flagged_total', value: '20' },
   { key: 'last_exported_at', value: '' },
 ];
 
@@ -173,7 +167,7 @@ let seedPromise: Promise<void> | null = null;
 export function seedIfEmpty(): Promise<void> {
   if (seedPromise) return seedPromise;
   seedPromise = (async () => {
-    await db.transaction('rw', [db.dsaTopics, db.webdevTopics, db.settings, db.dsaChecklistItems, db.dsaRevisions], async () => {
+    await db.transaction('rw', [db.dsaTopics, db.webdevTopics, db.settings, db.dsaRevisions], async () => {
       // 1. DSA Topics
       const allTopics = await db.dsaTopics.toArray();
       if (allTopics.length === 0) {
@@ -192,11 +186,6 @@ export function seedIfEmpty(): Promise<void> {
         if (toDelete.length > 0) {
           await db.dsaTopics.bulkDelete(toDelete);
         }
-      }
-
-      const checklistItems = await db.dsaChecklistItems.toArray();
-      if (checklistItems.length === 0) {
-        await db.dsaChecklistItems.bulkAdd(DSA_CHECKLIST_SEED);
       }
 
       await seedFinalRevisionTasks();
@@ -298,13 +287,6 @@ export async function markDsaTopicComplete(topicId: number): Promise<void> {
   const topic = await db.dsaTopics.get(topicId);
   if (!topic || topic.completedAt) return;
   const completedAt = toLocalDateString();
-  const graphItems = topic.name === 'Graphs'
-    ? await db.dsaChecklistItems.where('list').equals('graph-revision').toArray()
-    : [];
-  const graphR1Completed = graphItems.filter(item => item.done).length;
-  const r1Target = topic.name === 'Graphs' ? 20 : 3;
-  const r1DueDate = topic.name === 'Graphs' ? '2026-12-18' : addDaysToIsoDate(completedAt, 7);
-  const r2DueDate = topic.name === 'Graphs' ? '2027-01-17' : addDaysToIsoDate(completedAt, 30);
   await db.transaction('rw', [db.dsaTopics, db.dsaRevisions], async () => {
     await db.dsaTopics.update(topicId, { completedAt });
     const existing = await db.dsaRevisions.where('topicName').equals(topic.name).toArray();
@@ -312,18 +294,17 @@ export async function markDsaTopicComplete(topicId: number): Promise<void> {
       await db.dsaRevisions.add({
         topicName: topic.name,
         pass: 'R1',
-        dueDate: r1DueDate,
-        target: r1Target,
-        completed: graphR1Completed,
-        status: graphR1Completed >= r1Target ? 'done' : 'open',
-        completedAt: graphR1Completed >= r1Target ? toLocalDateString() : undefined,
+        dueDate: addDaysToIsoDate(completedAt, 7),
+        target: 3,
+        completed: 0,
+        status: 'open',
       });
     }
     if (!existing.some(task => task.pass === 'R2')) {
       await db.dsaRevisions.add({
         topicName: topic.name,
         pass: 'R2',
-        dueDate: r2DueDate,
+        dueDate: addDaysToIsoDate(completedAt, 30),
         target: 3,
         completed: 0,
         status: 'open',
@@ -341,24 +322,6 @@ export async function incrementDsaRevision(taskId: number): Promise<void> {
     completed,
     status: done ? 'done' : task.collapsedAt ? 'collapsed' : 'open',
     completedAt: done ? toLocalDateString() : undefined,
-  });
-}
-
-export async function setGraphRevisionChecklistItem(item: DsaChecklistItem, done: boolean): Promise<void> {
-  if (item.id === undefined) return;
-  await db.transaction('rw', [db.dsaChecklistItems, db.dsaRevisions], async () => {
-    await db.dsaChecklistItems.update(item.id!, { done });
-    const checked = await db.dsaChecklistItems.where('list').equals('graph-revision').filter(row =>
-      row.id === item.id ? done : row.done
-    ).count();
-    const r1 = (await db.dsaRevisions.where('topicName').equals('Graphs').toArray()).find(task => task.pass === 'R1');
-    if (!r1 || r1.id === undefined) return;
-    const isDone = checked >= r1.target;
-    await db.dsaRevisions.update(r1.id, {
-      completed: checked,
-      status: isDone ? 'done' : r1.collapsedAt ? 'collapsed' : 'open',
-      completedAt: isDone ? toLocalDateString() : undefined,
-    });
   });
 }
 
@@ -716,15 +679,15 @@ export function isWebDevPhaseLocked(phase: number, allTopics: WebDevTopic[]): bo
 }
 
 export async function exportData(): Promise<string> {
-  const [dsaTopics, webdevTopics, settings, streakDays, dsaChecklistItems, dsaRevisions] = await Promise.all([
+  const [dsaTopics, webdevTopics, settings, streakDays, dsaRevisions] = await Promise.all([
     db.dsaTopics.toArray(),
     db.webdevTopics.toArray(),
     db.settings.toArray(),
     db.streakDays.toArray(),
-    db.dsaChecklistItems.toArray(),
     db.dsaRevisions.toArray(),
   ]);
-  return JSON.stringify({ dsaTopics, webdevTopics, settings, streakDays, dsaChecklistItems, dsaRevisions }, null, 2);
+  const activeSettings = settings.filter(setting => setting.key !== 'graph_revision_per_week' && setting.key !== 'graph_flagged_total');
+  return JSON.stringify({ dsaTopics, webdevTopics, settings: activeSettings, streakDays, dsaRevisions }, null, 2);
 }
 
 export async function importData(json: string): Promise<void> {
@@ -738,21 +701,21 @@ export async function importData(json: string): Promise<void> {
         ...(topic.completedAt ? { completedAt: topic.completedAt } : {}),
       }))
     : [];
-  await db.transaction('rw', [db.dsaTopics, db.webdevTopics, db.settings, db.streakDays, db.dsaChecklistItems, db.dsaRevisions], async () => {
+  const importedSettings = Array.isArray(data.settings)
+    ? data.settings.filter((setting: AppSettings) => setting.key !== 'graph_revision_per_week' && setting.key !== 'graph_flagged_total')
+    : [];
+  await db.transaction('rw', [db.dsaTopics, db.webdevTopics, db.settings, db.streakDays, db.dsaRevisions], async () => {
     await db.dsaTopics.clear();
     await db.webdevTopics.clear();
     await db.settings.clear();
     await db.streakDays.clear();
-    await db.dsaChecklistItems.clear();
     await db.dsaRevisions.clear();
     if (dsaTopics.length) await db.dsaTopics.bulkAdd(dsaTopics);
     if (data.webdevTopics?.length) await db.webdevTopics.bulkAdd(data.webdevTopics);
-    if (data.settings?.length) await db.settings.bulkAdd(data.settings);
+    if (importedSettings.length) await db.settings.bulkAdd(importedSettings);
     if (data.streakDays?.length) await db.streakDays.bulkAdd(data.streakDays);
-    if (data.dsaChecklistItems?.length) await db.dsaChecklistItems.bulkAdd(data.dsaChecklistItems);
     if (data.dsaRevisions?.length) await db.dsaRevisions.bulkAdd(data.dsaRevisions);
   });
-  if ((await db.dsaChecklistItems.count()) === 0) await db.dsaChecklistItems.bulkAdd(DSA_CHECKLIST_SEED);
   await seedFinalRevisionTasks();
 }
 

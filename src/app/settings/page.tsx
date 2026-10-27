@@ -28,8 +28,6 @@ export default function SettingsPage() {
     'webdev_deadline',
     'webdev_days',
     'webdev_daily_minutes',
-    'graph_revision_per_week',
-    'graph_flagged_total',
     'last_exported_at',
   ];
 
@@ -272,31 +270,6 @@ export default function SettingsPage() {
           <p className="text-xs text-gray-500 mt-1">
             Target points per day = remaining difficulty-weighted points ÷ remaining active webdev days.
           </p>
-        </div>
-      </div>
-
-      {/* 4. Graph Revision Config */}
-      <div className="glass rounded-xl p-5 space-y-4">
-        <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">Graph Revision Config</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">Pre-flagged Revision Items</label>
-            <input
-              type="number"
-              value={values.graph_flagged_total ?? '20'}
-              onChange={e => handleChange('graph_flagged_total', e.target.value)}
-              className="min-h-11 w-full text-sm rounded-lg bg-gray-900 border border-gray-700 text-gray-200 px-3 py-2 focus:outline-none focus:border-violet-500"
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">Revisions Per Week (through W8)</label>
-            <input
-              type="number"
-              value={values.graph_revision_per_week ?? '3'}
-              onChange={e => handleChange('graph_revision_per_week', e.target.value)}
-              className="min-h-11 w-full text-sm rounded-lg bg-gray-900 border border-gray-700 text-gray-200 px-3 py-2 focus:outline-none focus:border-violet-500"
-            />
-          </div>
         </div>
       </div>
 

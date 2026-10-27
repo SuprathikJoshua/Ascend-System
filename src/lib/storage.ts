@@ -20,12 +20,10 @@ import {
   resetWebdevToSeed as resetLocalWebdevToSeed,
   seedIfEmpty as seedLocalIfEmpty,
   setDsaTopicDone as setLocalDsaTopicDone,
-  setGraphRevisionChecklistItem as setLocalGraphRevisionChecklistItem,
   setSetting as setLocalSetting,
   daysUntil,
   linearPlanFraction,
   toLocalDateString,
-  type DsaChecklistItem,
   type DsaRevisionTask,
   type DsaTopic,
   type StreakDay,
@@ -34,7 +32,6 @@ import {
 
 export type {
   AppSettings,
-  DsaChecklistItem,
   DsaQuotaDetails,
   DsaRevisionPass,
   DsaRevisionStatus,
@@ -122,10 +119,6 @@ export async function getTodayStreakDay(date: string): Promise<StreakDay | undef
   return db.streakDays.where('date').equals(date).first();
 }
 
-export async function getDsaChecklistItems(): Promise<DsaChecklistItem[]> {
-  return db.dsaChecklistItems.toArray();
-}
-
 export async function getDsaRevisionRecords(): Promise<DsaRevisionTask[]> {
   return db.dsaRevisions.toArray();
 }
@@ -138,10 +131,6 @@ export async function getPlaceholderProofTopics(): Promise<WebDevTopic[]> {
 
 export function updateWebDevTopic(id: number, changes: Partial<WebDevTopic>): Promise<number> {
   return write(() => db.webdevTopics.update(id, changes));
-}
-
-export function updateDsaChecklistItem(id: number, changes: Partial<DsaChecklistItem>): Promise<number> {
-  return write(() => db.dsaChecklistItems.update(id, changes));
 }
 
 export function updateDsaRevisionTask(id: number, changes: Partial<DsaRevisionTask>): Promise<number> {
@@ -170,10 +159,6 @@ export function markDsaTopicComplete(topicId: number): Promise<void> {
 
 export function incrementDsaRevision(taskId: number): Promise<void> {
   return write(() => incrementLocalDsaRevision(taskId));
-}
-
-export function setGraphRevisionChecklistItem(item: DsaChecklistItem, done: boolean): Promise<void> {
-  return write(() => setLocalGraphRevisionChecklistItem(item, done));
 }
 
 export function markTodayWebdev(): Promise<void> {

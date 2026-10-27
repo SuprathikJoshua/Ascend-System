@@ -18,39 +18,6 @@ export const DSA_PHASE_PLAN: DsaPhasePlan[] = [
   { label: 'W17-18', startWeek: 17, endWeek: 18, topics: [] },
 ];
 
-export const GRAPH_LEFTOVERS = [
-  'Traversal Problems',
-  'Cycles',
-  'Shortest Path Algorithms',
-  'Shortest Path Algorithms',
-  'Shortest Path Algorithms',
-  'Shortest Path Algorithms',
-  'Hard Problems II',
-];
-
-export const GRAPH_REVISION_ITEMS = [
-  'BFS/DFS on grid',
-  'Cycle detection undirected',
-  'Cycle detection directed',
-  'Topo sort (DFS)',
-  'Topo sort (Kahn)',
-  'Dijkstra',
-  'Bellman-Ford',
-  'Floyd-Warshall',
-  'DSU',
-  'Kruskal',
-  'Prim',
-  'Bridges',
-  'Articulation points',
-  'SCC (Kosaraju)',
-  'Bipartite check',
-  'Shortest path in DAG',
-  'Word Ladder',
-  'Number of provinces',
-  'Multi-source BFS (Rotten Oranges)',
-  'Cheapest flights within K stops',
-];
-
 export const DSA_TOPIC_ORDER = DSA_PHASE_PLAN.flatMap(phase => phase.topics);
 
 export function dsaTopicPhase(name: string): string {
