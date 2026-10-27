@@ -3,12 +3,13 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
-  db, seedIfEmpty, getDailyNewQuotaDetails, getDailyWebdevTarget,
+  seedIfEmpty, getDsaTopics, getWebDevTopics, getTodayStreakDay, getDsaRevisionRecords,
+  updateWebDevTopic, getDailyNewQuotaDetails, getDailyWebdevTarget,
   getCombinedStreak, daysUntil, linearPlanFraction, getSetting, setSetting, incrementDone,
   getDsaRevisionTasks, getDsaWeeklyRevisionReview,
   markTodayWebdev, toLocalDateString, isWebDevPhaseLocked, exportData,
   type DsaTopic, type WebDevTopic, type DsaQuotaDetails, type WebdevTargetDetails,
-} from '@/lib/db';
+} from '@/lib/storage';
 import {
   Flame, Target, Clock, TrendingUp, TrendingDown, Minus as MinusIcon,
   Code2, Globe, Calendar, Zap, CheckCircle2, ChevronRight, AlertTriangle, AlertCircle,
@@ -31,13 +32,13 @@ export default function DashboardPage() {
   const [proofModal, setProofModal] = useState<WebDevTopic | null>(null);
 
   const topics = useLiveQuery(
-    () => db.dsaTopics.toArray().then(rows => rows.sort((a, b) => (DSA_TOPIC_INDEX.get(a.name) ?? 999) - (DSA_TOPIC_INDEX.get(b.name) ?? 999))),
+    () => getDsaTopics().then(rows => rows.sort((a, b) => (DSA_TOPIC_INDEX.get(a.name) ?? 999) - (DSA_TOPIC_INDEX.get(b.name) ?? 999))),
     [],
   );
-  const webdevTopics = useLiveQuery(() => db.webdevTopics.orderBy('order').toArray(), []);
+  const webdevTopics = useLiveQuery(() => getWebDevTopics(), []);
   const todayStr = toLocalDateString(new Date());
-  const todayStreak = useLiveQuery(() => db.streakDays.where('date').equals(todayStr).first(), [todayStr]);
-  const dsaRevisions = useLiveQuery(() => db.dsaRevisions.toArray(), []);
+  const todayStreak = useLiveQuery(() => getTodayStreakDay(todayStr), [todayStr]);
+  const dsaRevisions = useLiveQuery(() => getDsaRevisionRecords(), []);
 
   useEffect(() => {
     seedIfEmpty().then(() => setSeeded(true));
@@ -125,7 +126,7 @@ export default function DashboardPage() {
       status: 'done',
       doneAt: toLocalDateString(new Date()),
     };
-    await db.webdevTopics.update(nextWebdevTopic.id, updates);
+    await updateWebDevTopic(nextWebdevTopic.id, updates);
     await markTodayWebdev();
     await refresh();
   };
@@ -172,7 +173,7 @@ export default function DashboardPage() {
             </div>
             <Link
               href="/settings"
-              className="text-xs px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/30 transition-colors shrink-0 font-medium flex items-center gap-1"
+              className="min-h-11 text-xs px-3 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/30 transition-colors shrink-0 font-medium flex items-center gap-1"
             >
               Set Deadline <ArrowRight size={13} />
             </Link>
@@ -196,13 +197,13 @@ export default function DashboardPage() {
             <div className="flex items-center gap-2">
               <button
                 onClick={handleQuickExport}
-                className="text-xs px-3 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 border border-rose-500/30 transition-colors shrink-0 font-medium flex items-center gap-1.5"
+                className="min-h-11 text-xs px-3 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 border border-rose-500/30 transition-colors shrink-0 font-medium flex items-center gap-1.5"
               >
                 <Download size={13} /> Export Backup
               </button>
               <Link
                 href="/settings"
-                className="text-xs px-2.5 py-1.5 rounded-lg border border-gray-700 text-gray-400 hover:text-gray-200 transition-colors shrink-0"
+                className="min-h-11 text-xs px-2.5 rounded-lg border border-gray-700 text-gray-400 hover:text-gray-200 transition-colors shrink-0"
               >
                 Settings
               </Link>
@@ -230,7 +231,7 @@ export default function DashboardPage() {
             </span>
             <button
               onClick={() => setPreviewReview(p => !p)}
-              className="text-[11px] px-2 py-0.5 rounded border border-gray-700 text-gray-400 hover:text-gray-200 transition-colors"
+              className="min-h-11 px-2 text-[11px] rounded border border-gray-700 text-gray-400 hover:text-gray-200 transition-colors"
             >
               {showReview ? 'Hide Weekly Review' : 'Weekly Review Panel'}
             </button>
@@ -309,7 +310,7 @@ export default function DashboardPage() {
                 )}
                 <Link
                   href="/dsa"
-                  className="text-xs px-2 py-1 rounded-lg border border-violet-500/30 text-violet-400 hover:bg-violet-500/10 transition-colors"
+                  className="min-h-11 px-2 flex items-center text-xs rounded-lg border border-violet-500/30 text-violet-400 hover:bg-violet-500/10 transition-colors"
                 >
                   Open →
                 </Link>
@@ -411,7 +412,7 @@ export default function DashboardPage() {
                 )}
                 <Link
                   href="/webdev"
-                  className="text-xs px-2 py-1 rounded-lg border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 transition-colors"
+                  className="min-h-11 px-2 flex items-center text-xs rounded-lg border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 transition-colors"
                 >
                   Open →
                 </Link>
@@ -423,7 +424,7 @@ export default function DashboardPage() {
               <div className="flex items-center gap-2">
                 <ChevronRight size={14} className={isWebdevDay ? 'text-cyan-400' : 'text-gray-600'} />
                 <span className="text-xs text-gray-500 w-28 shrink-0">Next topic</span>
-                <span className={`text-sm font-medium ${isWebdevDay ? 'text-gray-200' : 'text-gray-600 line-through'}`}>
+                <span className={`min-w-0 break-words text-sm font-medium ${isWebdevDay ? 'text-gray-200' : 'text-gray-600 line-through'}`}>
                   {nextWebdevTopic ? nextWebdevTopic.name : wdTotal === 0 ? 'No topics yet' : 'All done! 🎉'}
                 </span>
               </div>
@@ -480,7 +481,7 @@ export default function DashboardPage() {
               nextWebdevTopic ? (
                 <button
                   onClick={handleOneClickWebdevDone}
-                  className="w-full text-xs py-2 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/20 transition-all font-medium flex items-center justify-center gap-1.5"
+                  className="min-h-11 w-full text-xs rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/20 transition-all font-medium flex items-center justify-center gap-1.5"
                 >
                   <CheckCircle2 size={14} className="text-cyan-400" />
                   One-click done: Mark &quot;{nextWebdevTopic.name}&quot; complete
@@ -526,7 +527,7 @@ export default function DashboardPage() {
           <div className="glass rounded-xl p-4 flex flex-col items-center justify-center text-center border border-amber-500/30">
             <span className="text-xs text-gray-500 uppercase tracking-wider mb-1">Web Dev</span>
             <span className="text-sm font-semibold text-amber-400">Not set</span>
-            <Link href="/settings" className="text-xs text-cyan-400 hover:underline mt-1">Set deadline →</Link>
+            <Link href="/settings" className="min-h-11 flex items-center text-xs text-cyan-400 hover:underline mt-1">Set deadline →</Link>
           </div>
         )}
         <div className="glass rounded-xl p-4 flex flex-col justify-center items-center">
@@ -573,7 +574,7 @@ export default function DashboardPage() {
                   await refresh();
                 }
               }}
-              className="text-xs px-3 py-1.5 rounded-lg bg-violet-600/10 border border-violet-500/20 text-violet-300 hover:bg-violet-600/20 transition-colors"
+              className="min-h-11 px-3 rounded-lg bg-violet-600/10 border border-violet-500/20 text-violet-300 hover:bg-violet-600/20 transition-colors"
             >
               +1 {t.name} ({t.done}/{t.total})
             </button>
@@ -587,7 +588,7 @@ export default function DashboardPage() {
           onClose={() => setProofModal(null)}
           onSave={async (proofLink, breakFixNote) => {
             if (proofModal.id === undefined) return;
-            await db.webdevTopics.update(proofModal.id, {
+            await updateWebDevTopic(proofModal.id, {
               status: 'done',
               proofLink,
               breakFixNote,

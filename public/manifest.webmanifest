@@ -1,0 +1,14 @@
+{
+  "name": "Prep Dashboard",
+  "short_name": "Prep",
+  "description": "DSA and web development interview preparation tracker",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#030712",
+  "theme_color": "#030712",
+  "icons": [
+    { "src": "/icons/prep-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/prep-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

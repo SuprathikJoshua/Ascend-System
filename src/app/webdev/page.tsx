@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, seedIfEmpty, markTodayWebdev, getDailyWebdevTarget, isWebDevPhaseLocked, type WebDevTopic, type WebDevStatus } from '@/lib/db';
+import { seedIfEmpty, markTodayWebdev, getDailyWebdevTarget, getWebDevTopics, updateWebDevTopic, isWebDevPhaseLocked, type WebDevTopic, type WebDevStatus } from '@/lib/storage';
 import { Globe, Lock, CheckCircle2, BookOpen, Wrench, Circle, ExternalLink, Filter, Target, Zap, ChevronRight } from 'lucide-react';
 import ProofModal from '@/components/webdev/ProofModal';
 
@@ -47,7 +47,7 @@ export default function WebDevPage() {
     hasDeadline: boolean;
   } | null>(null);
 
-  const topics = useLiveQuery(() => db.webdevTopics.orderBy('order').toArray(), []);
+  const topics = useLiveQuery(() => getWebDevTopics(), []);
 
   useEffect(() => {
     seedIfEmpty().then(() => setSeeded(true));
@@ -95,11 +95,11 @@ export default function WebDevPage() {
       updates.doneAt = new Date().toISOString().slice(0, 10);
       await markTodayWebdev();
     }
-    await db.webdevTopics.update(topic.id, updates);
+    await updateWebDevTopic(topic.id, updates);
   };
 
   const updateNotes = async (id: number, notes: string) => {
-    await db.webdevTopics.update(id, { notes });
+    await updateWebDevTopic(id, { notes });
   };
 
   if (!seeded || !topics) {
@@ -196,7 +196,7 @@ export default function WebDevPage() {
             <select
               value={String(filterPhase)}
               onChange={e => setFilterPhase(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-              className="text-xs rounded-lg bg-gray-900 border border-gray-700 text-gray-300 px-2 py-1.5 focus:outline-none"
+              className="min-h-11 text-xs rounded-lg bg-gray-900 border border-gray-700 text-gray-300 px-2 py-2 focus:outline-none"
             >
               <option value="all">All Phases</option>
               {phases.map(ph => <option key={ph} value={ph}>Phase {ph}</option>)}
@@ -204,7 +204,7 @@ export default function WebDevPage() {
             <select
               value={filterStatus}
               onChange={e => setFilterStatus(e.target.value as WebDevStatus | 'all')}
-              className="text-xs rounded-lg bg-gray-900 border border-gray-700 text-gray-300 px-2 py-1.5 focus:outline-none"
+              className="min-h-11 text-xs rounded-lg bg-gray-900 border border-gray-700 text-gray-300 px-2 py-2 focus:outline-none"
             >
               <option value="all">All Status</option>
               <option value="todo">To Do</option>
@@ -215,7 +215,7 @@ export default function WebDevPage() {
             <select
               value={filterImportance}
               onChange={e => setFilterImportance(e.target.value)}
-              className="text-xs rounded-lg bg-gray-900 border border-gray-700 text-gray-300 px-2 py-1.5 focus:outline-none"
+              className="min-h-11 text-xs rounded-lg bg-gray-900 border border-gray-700 text-gray-300 px-2 py-2 focus:outline-none"
             >
               <option value="all">All Importance</option>
               <option value="Critical">Critical</option>
@@ -226,7 +226,7 @@ export default function WebDevPage() {
             <select
               value={filterPractical}
               onChange={e => setFilterPractical(e.target.value as 'all' | 'yes' | 'no')}
-              className="text-xs rounded-lg bg-gray-900 border border-gray-700 text-gray-300 px-2 py-1.5 focus:outline-none"
+              className="min-h-11 text-xs rounded-lg bg-gray-900 border border-gray-700 text-gray-300 px-2 py-2 focus:outline-none"
             >
               <option value="all">All Practical</option>
               <option value="yes">Practical Required</option>
@@ -272,7 +272,7 @@ export default function WebDevPage() {
 
                     return (
                       <div key={topic.id} className="group/row">
-                        <div className="px-4 py-3 flex items-center gap-3">
+                        <div className="px-3 sm:px-4 py-3 flex flex-wrap items-center gap-3">
                           {/* Status icon */}
                           {config.icon}
 
@@ -309,12 +309,12 @@ export default function WebDevPage() {
 
                           {/* Status controls */}
                           {!locked && (
-                            <div className="flex items-center gap-1 opacity-0 group-hover/row:opacity-100 transition-opacity">
+                            <div className="basis-full sm:basis-auto flex items-center justify-end gap-1 opacity-100 sm:opacity-0 sm:group-hover/row:opacity-100 transition-opacity">
                               {(['todo', 'learning', 'built', 'done'] as WebDevStatus[]).map(s => (
                                 <button
                                   key={s}
                                   onClick={() => updateStatus(topic, s)}
-                                  className={`text-xs px-2 py-0.5 rounded border transition-colors ${
+                                  className={`min-h-11 px-2 text-xs rounded border transition-colors ${
                                     topic.status === s
                                       ? STATUS_CONFIG[s].color + ' bg-current/10 border-current/30 opacity-100'
                                       : 'text-gray-600 border-gray-700 hover:text-gray-400'
@@ -329,7 +329,8 @@ export default function WebDevPage() {
                           {/* Expand notes/resources */}
                           <button
                             onClick={() => setExpandedId(isExpanded ? null : (topic.id ?? null))}
-                            className="text-xs text-gray-600 hover:text-gray-400 transition-colors ml-2"
+                            aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${topic.name}`}
+                            className="min-h-11 min-w-11 ml-auto rounded text-xs text-gray-600 hover:text-gray-400 transition-colors"
                           >
                             {isExpanded ? '▲' : '▼'}
                           </button>
@@ -349,7 +350,7 @@ export default function WebDevPage() {
                                       href={r.url}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg bg-gray-800 border border-gray-700 text-blue-400 hover:text-blue-300 transition-colors"
+                                      className="min-h-11 flex items-center gap-1 text-xs px-3 rounded-lg bg-gray-800 border border-gray-700 text-blue-400 hover:text-blue-300 transition-colors"
                                     >
                                       <ExternalLink size={10} /> {r.label}
                                     </a>
@@ -377,14 +378,14 @@ export default function WebDevPage() {
                                 <input
                                   type="url"
                                   defaultValue={topic.proofLink ?? ''}
-                                  onBlur={e => topic.id !== undefined && db.webdevTopics.update(topic.id, { proofLink: e.target.value })}
+                                  onBlur={e => topic.id !== undefined && updateWebDevTopic(topic.id, { proofLink: e.target.value })}
                                   placeholder="Repo / commit link (proof)"
                                   className="w-full text-xs rounded-lg bg-gray-900 border border-gray-700 text-gray-300 placeholder-gray-600 px-3 py-2 focus:outline-none focus:border-cyan-500 transition-colors"
                                 />
                                 <input
                                   type="text"
                                   defaultValue={topic.breakFixNote ?? ''}
-                                  onBlur={e => topic.id !== undefined && db.webdevTopics.update(topic.id, { breakFixNote: e.target.value })}
+                                  onBlur={e => topic.id !== undefined && updateWebDevTopic(topic.id, { breakFixNote: e.target.value })}
                                   placeholder="What I broke and how I fixed it…"
                                   className="w-full text-xs rounded-lg bg-gray-900 border border-gray-700 text-gray-300 placeholder-gray-600 px-3 py-2 focus:outline-none focus:border-cyan-500 transition-colors"
                                 />
@@ -408,7 +409,7 @@ export default function WebDevPage() {
           topic={proofModal}
           onSave={async (proofLink, breakFixNote) => {
             if (proofModal.id !== undefined) {
-              await db.webdevTopics.update(proofModal.id, {
+              await updateWebDevTopic(proofModal.id, {
                 status: 'done',
                 proofLink,
                 breakFixNote,

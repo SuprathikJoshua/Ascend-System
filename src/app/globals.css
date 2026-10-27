@@ -9,6 +9,25 @@
   color-scheme: dark;
 }
 
+@media (max-width: 640px) {
+  button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  a {
+    display: inline-flex;
+    min-width: 44px;
+    min-height: 44px;
+    align-items: center;
+  }
+
+  input,
+  select {
+    min-height: 44px;
+  }
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }

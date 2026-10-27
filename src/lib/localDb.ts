@@ -426,6 +426,12 @@ export async function decrementDone(topicId: number): Promise<void> {
   await updateDsaWeekDone(-1);
 }
 
+export async function setDsaTopicDone(topicId: number, done: number): Promise<void> {
+  const topic = await db.dsaTopics.get(topicId);
+  if (!topic || !Number.isInteger(done) || done < 0 || done > topic.total || done === topic.done) return;
+  await db.dsaTopics.update(topicId, { done });
+}
+
 async function updateDsaWeekDone(delta: number): Promise<void> {
   const startIso = await getSetting('dsa_start', '2026-10-24');
   const key = dsaWeekKey(startIso);

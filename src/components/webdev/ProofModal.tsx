@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type { WebDevTopic } from '@/lib/db';
+import type { WebDevTopic } from '@/lib/storage';
 
 const PLACEHOLDER_PROOF = 'Completed via dashboard one-click';
 const PLACEHOLDER_BREAK_FIX = 'Completed';
@@ -48,11 +48,11 @@ export default function ProofModal({ topic, onSave, onClose }: Props) {
           </div>
         </div>
         <div className="flex justify-end gap-3 mt-4">
-          <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm text-gray-400 hover:text-gray-200 hover:bg-gray-800 transition-colors">Cancel</button>
+          <button onClick={onClose} className="min-h-11 px-4 rounded-lg text-sm text-gray-400 hover:text-gray-200 hover:bg-gray-800 transition-colors">Cancel</button>
           <button
             onClick={() => canSave && onSave(proof.trim(), breakFix.trim())}
             disabled={!canSave}
-            className="px-4 py-2 rounded-lg text-sm font-semibold bg-amber-600 hover:bg-amber-500 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className="min-h-11 px-4 rounded-lg text-sm font-semibold bg-amber-600 hover:bg-amber-500 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             Mark Done
           </button>

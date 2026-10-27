@@ -1,4 +1,4 @@
-import type { WebDevTopic } from "./db";
+import type { WebDevTopic } from "./localDb";
 
 export const WEBDEV_SEED: Omit<WebDevTopic, "id">[] = [
   {

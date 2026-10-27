@@ -4,10 +4,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { BookOpen, Check, Clock3, Minus, Plus, RotateCcw, Target } from 'lucide-react';
 import {
-  db, daysUntil, decrementDone, getDailyNewQuotaDetails, getDsaRevisionTasks, getDsaWeekProgress,
+  daysUntil, decrementDone, getDsaTopics, getDsaChecklistItems, getDsaRevisionRecords,
+  updateDsaChecklistItem, updateDsaRevisionTask, getDailyNewQuotaDetails, getDsaRevisionTasks, getDsaWeekProgress,
   incrementDone, incrementDsaRevision, markDsaTopicComplete, seedIfEmpty,
-  setGraphRevisionChecklistItem, toLocalDateString, type DsaChecklistItem, type DsaRevisionTask, type DsaTopic,
-} from '@/lib/db';
+  setDsaTopicDone, setGraphRevisionChecklistItem, toLocalDateString, type DsaChecklistItem, type DsaRevisionTask, type DsaTopic,
+} from '@/lib/storage';
 import { DSA_PHASE_PLAN, DSA_TOPIC_ORDER } from '@/lib/dsaPlan';
 
 const TOPIC_ORDER = new Map(DSA_TOPIC_ORDER.map((name, index) => [name, index]));
@@ -18,12 +19,15 @@ export default function DsaPage() {
   const [quota, setQuota] = useState(0);
   const [daysToDeadline, setDaysToDeadline] = useState(0);
   const [weekProgress, setWeekProgress] = useState({ week: 1, doneThisWeek: 0 });
+  const [editingTopicId, setEditingTopicId] = useState<number | null>(null);
+  const [doneDraft, setDoneDraft] = useState('');
+  const [doneError, setDoneError] = useState('');
   const topics = useLiveQuery(
-    () => db.dsaTopics.toArray().then(rows => rows.sort((a, b) => (TOPIC_ORDER.get(a.name) ?? 999) - (TOPIC_ORDER.get(b.name) ?? 999))),
+    () => getDsaTopics().then(rows => rows.sort((a, b) => (TOPIC_ORDER.get(a.name) ?? 999) - (TOPIC_ORDER.get(b.name) ?? 999))),
     [],
   );
-  const checklistItems = useLiveQuery(() => db.dsaChecklistItems.toArray(), []);
-  const revisionTasks = useLiveQuery(() => db.dsaRevisions.toArray(), []);
+  const checklistItems = useLiveQuery(() => getDsaChecklistItems(), []);
+  const revisionTasks = useLiveQuery(() => getDsaRevisionRecords(), []);
 
   useEffect(() => {
     seedIfEmpty().then(() => setSeeded(true));
@@ -68,10 +72,21 @@ export default function DsaPage() {
     if (item.id === undefined) return;
     if (item.list === 'graph-revision' && typeof changes.done === 'boolean') {
       await setGraphRevisionChecklistItem(item, changes.done);
-      if (Object.hasOwn(changes, 'label')) await db.dsaChecklistItems.update(item.id, { label: changes.label });
+      if (Object.hasOwn(changes, 'label')) await updateDsaChecklistItem(item.id, { label: changes.label });
       return;
     }
-    await db.dsaChecklistItems.update(item.id, changes);
+    await updateDsaChecklistItem(item.id, changes);
+  };
+
+  const saveDoneCount = async (topic: DsaTopic) => {
+    const done = Number(doneDraft);
+    if (!Number.isInteger(done) || done < 0 || done > topic.total) {
+      setDoneError(`Enter a whole number from 0 to ${topic.total}.`);
+      return;
+    }
+    if (topic.id !== undefined) await setDsaTopicDone(topic.id, done);
+    setEditingTopicId(null);
+    setDoneError('');
   };
 
   if (!seeded || !topics || !checklistItems || !revisionTasks) {
@@ -123,9 +138,9 @@ export default function DsaPage() {
               behind: 'text-rose-300 bg-rose-500/10 border-rose-500/30',
             }[status];
             return (
-              <div key={phase.label} className={`grid grid-cols-[72px_1fr_auto_auto] items-center gap-3 rounded-lg border px-3 py-2 ${calendarCurrent ? 'border-violet-500/50 bg-violet-500/5 ring-1 ring-violet-500/20' : 'border-gray-800 bg-gray-900/30'}`}>
+              <div key={phase.label} className={`grid grid-cols-[56px_minmax(0,1fr)_auto] sm:grid-cols-[72px_minmax(0,1fr)_auto_auto] items-center gap-2 sm:gap-3 rounded-lg border px-3 py-2 ${calendarCurrent ? 'border-violet-500/50 bg-violet-500/5 ring-1 ring-violet-500/20' : 'border-gray-800 bg-gray-900/30'}`}>
                 <span className="text-xs font-semibold text-gray-300">{phase.label}</span>
-                <span className="text-sm text-gray-300">{phase.topics.length ? phase.topics.join(' · ') : 'Revision only'}</span>
+                <span className="min-w-0 text-sm text-gray-300 break-words">{phase.topics.length ? phase.topics.join(' · ') : 'Revision only'}</span>
                 <span className="text-xs text-gray-500 tabular-nums">{remaining} left</span>
                 <span className={`text-[11px] uppercase rounded border px-2 py-0.5 ${badgeClass}`}>{status}</span>
               </div>
@@ -162,25 +177,58 @@ export default function DsaPage() {
                 const remaining = Math.max(0, topic.total - topic.done);
                 const pct = topic.total > 0 ? Math.min(100, (topic.done / topic.total) * 100) : 0;
                 return (
-                  <div key={name} className="grid grid-cols-[minmax(140px,1.2fr)_minmax(120px,1fr)_56px_auto_auto] items-center gap-3 px-4 py-3">
+                  <div key={name} className="grid grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(140px,1.2fr)_minmax(120px,1fr)_56px_auto_auto] items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-sm font-medium text-gray-200">{name}</span>
                         {REDO_TOPICS.has(name) && <Tag color="rose">redo</Tag>}
                         {name === 'Graphs' && <Tag color="amber">revise</Tag>}
                       </div>
-                      <div className="text-xs text-gray-500 mt-1">{topic.done}/{topic.total} done · {remaining} left</div>
+                      <div className="text-xs text-gray-500 mt-1 flex items-center gap-1.5">
+                        {editingTopicId === topic.id ? (
+                          <>
+                            <input
+                              aria-label={`${name} done count`}
+                              type="number"
+                              min={0}
+                              max={topic.total}
+                              step={1}
+                              autoFocus
+                              value={doneDraft}
+                              onChange={event => { setDoneDraft(event.target.value); setDoneError(''); }}
+                              onBlur={() => void saveDoneCount(topic)}
+                              onKeyDown={event => {
+                                if (event.key === 'Enter') { event.preventDefault(); void saveDoneCount(topic); }
+                                if (event.key === 'Escape') { setEditingTopicId(null); setDoneError(''); }
+                              }}
+                              className="w-16 rounded border border-violet-500 bg-gray-950 px-2 py-1 text-xs text-gray-100 focus:outline-none"
+                            />
+                            <span>/{topic.total} done · {remaining} left</span>
+                            {doneError && <span role="alert" className="text-rose-300">{doneError}</span>}
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              aria-label={`Edit ${name} done count, currently ${topic.done}`}
+                              onClick={() => { setEditingTopicId(topic.id ?? null); setDoneDraft(String(topic.done)); setDoneError(''); }}
+                              className="rounded px-1 -ml-1 text-violet-300 hover:bg-gray-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-400"
+                            >{topic.done}</button>
+                            <span>/{topic.total} done · {remaining} left</span>
+                          </>
+                        )}
+                      </div>
                     </div>
-                    <div className="h-1.5 rounded-full bg-gray-800 overflow-hidden"><div className="h-full rounded-full bg-violet-400" style={{ width: `${pct}%` }} /></div>
-                    <span className="text-xs text-gray-400 text-right tabular-nums">{pct.toFixed(0)}%</span>
-                    <div className="flex gap-1">
-                      <button aria-label={`Decrease ${name} done count`} onClick={() => topic.id !== undefined && decrementDone(topic.id)} disabled={topic.done <= 0} className="w-8 h-8 rounded-lg bg-gray-800 text-gray-300 hover:bg-gray-700 disabled:opacity-30 flex items-center justify-center"><Minus size={14} /></button>
-                      <button aria-label={`Increase ${name} done count`} onClick={() => topic.id !== undefined && incrementDone(topic.id)} disabled={topic.done >= topic.total} className="w-8 h-8 rounded-lg bg-violet-600/20 text-violet-300 hover:bg-violet-600/40 disabled:opacity-30 flex items-center justify-center"><Plus size={14} /></button>
+                    <div className="col-span-2 sm:col-span-1 h-1.5 rounded-full bg-gray-800 overflow-hidden"><div className="h-full rounded-full bg-violet-400" style={{ width: `${pct}%` }} /></div>
+                    <span className="hidden sm:block text-xs text-gray-400 text-right tabular-nums">{pct.toFixed(0)}%</span>
+                    <div className="flex gap-2">
+                      <button aria-label={`Decrease ${name} done count`} onClick={() => topic.id !== undefined && decrementDone(topic.id)} disabled={topic.done <= 0} className="min-h-11 min-w-11 rounded-lg bg-gray-800 text-gray-300 hover:bg-gray-700 disabled:opacity-30 flex items-center justify-center"><Minus size={14} /></button>
+                      <button aria-label={`Increase ${name} done count`} onClick={() => topic.id !== undefined && incrementDone(topic.id)} disabled={topic.done >= topic.total} className="min-h-11 min-w-11 rounded-lg bg-violet-600/20 text-violet-300 hover:bg-violet-600/40 disabled:opacity-30 flex items-center justify-center"><Plus size={14} /></button>
                     </div>
                     {topic.completedAt ? (
                       <span className="text-[11px] text-emerald-400 text-right">Completed {topic.completedAt}</span>
                     ) : (
-                      <button onClick={() => topic.id !== undefined && markDsaTopicComplete(topic.id)} className="text-[11px] px-2 py-1 rounded border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10 whitespace-nowrap">Mark topic complete</button>
+                      <button onClick={() => topic.id !== undefined && markDsaTopicComplete(topic.id)} className="min-h-11 px-2 rounded border border-emerald-500/30 text-[11px] text-emerald-300 hover:bg-emerald-500/10 whitespace-nowrap">Mark topic complete</button>
                     )}
                   </div>
                 );
@@ -230,7 +278,7 @@ function Checklist({ title, items, onUpdate }: { title: string; items: DsaCheckl
       <ul className="space-y-2">
         {items.map(item => (
           <li key={item.id} className="flex items-center gap-2">
-            <button aria-label={`${item.done ? 'Uncheck' : 'Check'} ${item.label}`} onClick={() => onUpdate(item, { done: !item.done })} className={`w-5 h-5 shrink-0 rounded border flex items-center justify-center ${item.done ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300' : 'border-gray-700 text-transparent'}`}><Check size={13} /></button>
+            <button aria-label={`${item.done ? 'Uncheck' : 'Check'} ${item.label}`} onClick={() => onUpdate(item, { done: !item.done })} className={`min-h-11 min-w-11 shrink-0 rounded border flex items-center justify-center ${item.done ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300' : 'border-gray-700 text-transparent'}`}><Check size={13} /></button>
             <span className="text-[11px] text-gray-600 w-5 text-right tabular-nums">{item.order + 1}</span>
             <input
               aria-label={`${title} item ${item.order + 1} label`}
@@ -264,22 +312,22 @@ function RevisionRow({ task }: { task: DsaRevisionTask }) {
   const [whichProblems, setWhichProblems] = useState(task.whichProblems ?? '');
   useEffect(() => setWhichProblems(task.whichProblems ?? ''), [task.whichProblems]);
   return (
-    <div className="grid grid-cols-[minmax(100px,1fr)_40px_100px_auto_minmax(120px,1.2fr)] items-center gap-2 rounded-lg bg-gray-900/40 border border-gray-800 px-3 py-2">
-      <span className="text-sm text-gray-200 truncate">{task.topicName}</span>
+    <div className="grid grid-cols-1 sm:grid-cols-[minmax(100px,1fr)_40px_100px_auto_minmax(120px,1.2fr)] items-center gap-2 rounded-lg bg-gray-900/40 border border-gray-800 px-3 py-3 sm:py-2">
+      <span className="min-w-0 text-sm text-gray-200 truncate">{task.topicName}</span>
       <span className="text-xs text-cyan-300">{task.pass}</span>
       <span className="text-xs text-gray-500">{task.dueDate}</span>
       <div className="flex items-center gap-2">
         <span className={`text-xs tabular-nums ${task.status === 'collapsed' ? 'text-rose-300' : 'text-gray-400'}`}>{task.status === 'collapsed' ? 'collapsed · ' : ''}{task.completed}/{task.target}</span>
         {task.status !== 'done' && task.id !== undefined && (
-          <button aria-label={`Add one ${task.pass} re-solve for ${task.topicName}`} onClick={() => incrementDsaRevision(task.id!)} className="w-7 h-7 rounded bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/20 flex items-center justify-center"><Plus size={13} /></button>
+          <button aria-label={`Add one ${task.pass} re-solve for ${task.topicName}`} onClick={() => incrementDsaRevision(task.id!)} className="min-h-11 min-w-11 rounded bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/20 flex items-center justify-center"><Plus size={13} /></button>
         )}
       </div>
       <input
         value={whichProblems}
         onChange={event => setWhichProblems(event.target.value)}
-        onBlur={() => task.id !== undefined && whichProblems !== (task.whichProblems ?? '') && db.dsaRevisions.update(task.id, { whichProblems })}
+        onBlur={() => task.id !== undefined && whichProblems !== (task.whichProblems ?? '') && updateDsaRevisionTask(task.id, { whichProblems })}
         placeholder="Which problems (optional)"
-        className="w-full min-w-0 text-xs bg-gray-950 border border-gray-800 rounded px-2 py-1.5 text-gray-300 placeholder:text-gray-700 focus:outline-none focus:border-cyan-500"
+        className="min-h-11 w-full min-w-0 text-xs bg-gray-950 border border-gray-800 rounded px-2 py-1.5 text-gray-300 placeholder:text-gray-700 focus:outline-none focus:border-cyan-500"
       />
     </div>
   );

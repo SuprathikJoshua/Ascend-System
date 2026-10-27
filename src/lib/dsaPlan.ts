@@ -58,11 +58,18 @@ export function dsaTopicPhase(name: string): string {
 }
 
 export function currentDsaWeek(startIso: string, date = new Date()): number {
-  const start = new Date(`${startIso}T00:00:00`);
-  if (Number.isNaN(start.getTime())) return 1;
-  const todayUtc = Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
-  const startUtc = Date.UTC(start.getFullYear(), start.getMonth(), start.getDate());
-  return Math.floor((todayUtc - startUtc) / 86_400_000) + 1;
+  const [year, month, day] = startIso.split('-').map(Number);
+  const start = new Date(year, month - 1, day);
+  if (
+    !Number.isFinite(start.getTime()) ||
+    start.getFullYear() !== year ||
+    start.getMonth() !== month - 1 ||
+    start.getDate() !== day
+  ) return 1;
+
+  const today = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const elapsedCalendarDays = Math.round((today.getTime() - start.getTime()) / 86_400_000);
+  return Math.max(1, Math.floor(elapsedCalendarDays / 7) + 1);
 }
 
 export function dsaWeekKey(startIso: string, date = new Date()): string {

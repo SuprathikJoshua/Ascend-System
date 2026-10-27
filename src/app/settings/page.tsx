@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, seedIfEmpty, getSetting, setSetting, exportData, importData, resetDsaToSeed, resetWebdevToSeed } from '@/lib/db';
+import { seedIfEmpty, getSetting, setSetting, exportData, importData, resetDsaToSeed, resetWebdevToSeed, getPlaceholderProofTopics, updateWebDevTopic } from '@/lib/storage';
 import { Save, Download, Upload, Settings as SettingsIcon, AlertCircle, AlertTriangle, Calendar, CheckCircle2 } from 'lucide-react';
 
 const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -15,9 +15,7 @@ export default function SettingsPage() {
   const [importError, setImportError] = useState<string | null>(null);
   const [importSuccess, setImportSuccess] = useState(false);
   const placeholderProofTopics = useLiveQuery(
-    () => db.webdevTopics.filter(topic =>
-      topic.proofLink === 'Completed via dashboard one-click' || topic.breakFixNote === 'Completed'
-    ).toArray(),
+    () => getPlaceholderProofTopics(),
     [],
   );
 
@@ -90,6 +88,11 @@ export default function SettingsPage() {
     }
   };
 
+  const handleLogout = async () => {
+    await fetch('/api/logout', { method: 'POST' });
+    window.location.assign('/login');
+  };
+
   const handleFileImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -99,7 +102,7 @@ export default function SettingsPage() {
   };
 
   const resetPlaceholderTopic = async (id: number) => {
-    await db.webdevTopics.update(id, {
+    await updateWebDevTopic(id, {
       status: 'learning',
       proofLink: undefined,
       breakFixNote: undefined,
@@ -155,7 +158,7 @@ export default function SettingsPage() {
 
         {/* Web Dev Days */}
         <DaySelector
-          label="Web Dev Active Days (3 Weekdays Placeholder)"
+          label="Web Dev Active Days"
           hint="Web dev card is active on these days; off-day on others"
           value={webdevDaysValue}
           onChange={val => handleChange('webdev_days', val)}
@@ -181,7 +184,7 @@ export default function SettingsPage() {
               value={values.dsa_daily_minutes ?? ''}
               onChange={e => handleChange('dsa_daily_minutes', e.target.value)}
               placeholder="e.g. 120"
-              className="w-full text-sm rounded-lg bg-gray-900 border border-gray-700 text-gray-200 px-3 py-2 focus:outline-none focus:border-violet-500 transition-colors"
+              className="min-h-11 w-full text-sm rounded-lg bg-gray-900 border border-gray-700 text-gray-200 px-3 py-2 focus:outline-none focus:border-violet-500 transition-colors"
             />
           </div>
           <div>
@@ -193,7 +196,7 @@ export default function SettingsPage() {
               value={values.webdev_daily_minutes ?? ''}
               onChange={e => handleChange('webdev_daily_minutes', e.target.value)}
               placeholder="e.g. 90"
-              className="w-full text-sm rounded-lg bg-gray-900 border border-gray-700 text-gray-200 px-3 py-2 focus:outline-none focus:border-cyan-500 transition-colors"
+              className="min-h-11 w-full text-sm rounded-lg bg-gray-900 border border-gray-700 text-gray-200 px-3 py-2 focus:outline-none focus:border-cyan-500 transition-colors"
             />
           </div>
         </div>
@@ -211,7 +214,7 @@ export default function SettingsPage() {
               max="2035-12-31"
               value={values.dsa_start ?? ''}
               onChange={e => handleChange('dsa_start', e.target.value)}
-              className="w-full text-sm rounded-lg bg-gray-900 border border-gray-700 text-gray-200 px-3 py-2 focus:outline-none focus:border-violet-500"
+              className="min-h-11 w-full text-sm rounded-lg bg-gray-900 border border-gray-700 text-gray-200 px-3 py-2 focus:outline-none focus:border-violet-500"
             />
           </div>
           <div>
@@ -222,7 +225,7 @@ export default function SettingsPage() {
               max="2035-12-31"
               value={values.dsa_solve_deadline ?? ''}
               onChange={e => handleChange('dsa_solve_deadline', e.target.value)}
-              className="w-full text-sm rounded-lg bg-gray-900 border border-gray-700 text-gray-200 px-3 py-2 focus:outline-none focus:border-violet-500"
+              className="min-h-11 w-full text-sm rounded-lg bg-gray-900 border border-gray-700 text-gray-200 px-3 py-2 focus:outline-none focus:border-violet-500"
             />
             <span className="text-[10px] text-gray-500">All new problems solved by this date</span>
           </div>
@@ -234,7 +237,7 @@ export default function SettingsPage() {
               max="2035-12-31"
               value={values.dsa_final_deadline ?? ''}
               onChange={e => handleChange('dsa_final_deadline', e.target.value)}
-              className="w-full text-sm rounded-lg bg-gray-900 border border-gray-700 text-gray-200 px-3 py-2 focus:outline-none focus:border-violet-500"
+              className="min-h-11 w-full text-sm rounded-lg bg-gray-900 border border-gray-700 text-gray-200 px-3 py-2 focus:outline-none focus:border-violet-500"
             />
             <span className="text-[10px] text-gray-500">Full revision completed</span>
           </div>
@@ -264,7 +267,7 @@ export default function SettingsPage() {
             max="2035-12-31"
             value={webdevDeadline}
             onChange={e => handleChange('webdev_deadline', e.target.value)}
-            className="w-full text-sm rounded-lg bg-gray-900 border border-gray-700 text-gray-200 px-3 py-2 focus:outline-none focus:border-cyan-500 transition-colors"
+            className="min-h-11 w-full text-sm rounded-lg bg-gray-900 border border-gray-700 text-gray-200 px-3 py-2 focus:outline-none focus:border-cyan-500 transition-colors"
           />
           <p className="text-xs text-gray-500 mt-1">
             Target points per day = remaining difficulty-weighted points ÷ remaining active webdev days.
@@ -282,7 +285,7 @@ export default function SettingsPage() {
               type="number"
               value={values.graph_flagged_total ?? '20'}
               onChange={e => handleChange('graph_flagged_total', e.target.value)}
-              className="w-full text-sm rounded-lg bg-gray-900 border border-gray-700 text-gray-200 px-3 py-2 focus:outline-none focus:border-violet-500"
+              className="min-h-11 w-full text-sm rounded-lg bg-gray-900 border border-gray-700 text-gray-200 px-3 py-2 focus:outline-none focus:border-violet-500"
             />
           </div>
           <div>
@@ -291,7 +294,7 @@ export default function SettingsPage() {
               type="number"
               value={values.graph_revision_per_week ?? '3'}
               onChange={e => handleChange('graph_revision_per_week', e.target.value)}
-              className="w-full text-sm rounded-lg bg-gray-900 border border-gray-700 text-gray-200 px-3 py-2 focus:outline-none focus:border-violet-500"
+              className="min-h-11 w-full text-sm rounded-lg bg-gray-900 border border-gray-700 text-gray-200 px-3 py-2 focus:outline-none focus:border-violet-500"
             />
           </div>
         </div>
@@ -320,7 +323,7 @@ export default function SettingsPage() {
           {(placeholderProofTopics?.length ?? 0) > 0 && (
             <button
               onClick={resetAllPlaceholderTopics}
-              className="shrink-0 px-3 py-2 rounded-lg text-xs font-medium border border-rose-500/30 text-rose-300 hover:bg-rose-500/10 transition-colors"
+              className="min-h-11 shrink-0 px-3 rounded-lg text-xs font-medium border border-rose-500/30 text-rose-300 hover:bg-rose-500/10 transition-colors"
             >
               Reset all listed
             </button>
@@ -337,7 +340,7 @@ export default function SettingsPage() {
                 <span className="text-sm text-gray-200">{topic.name}</span>
                 <button
                   onClick={() => topic.id !== undefined && resetPlaceholderTopic(topic.id)}
-                  className="shrink-0 px-3 py-1.5 rounded-lg text-xs border border-rose-500/30 text-rose-300 hover:bg-rose-500/10 transition-colors"
+                  className="min-h-11 shrink-0 px-3 rounded-lg text-xs border border-rose-500/30 text-rose-300 hover:bg-rose-500/10 transition-colors"
                 >
                   Reset to Learning
                 </button>
@@ -360,7 +363,7 @@ export default function SettingsPage() {
 
         <button
           onClick={handleExport}
-          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg border border-gray-700 bg-gray-900/60 hover:bg-gray-800 text-gray-200 transition-colors text-sm font-medium"
+          className="min-h-11 w-full flex items-center justify-center gap-2 rounded-lg border border-gray-700 bg-gray-900/60 hover:bg-gray-800 text-gray-200 transition-colors text-sm font-medium"
         >
           <Download size={15} className="text-violet-400" /> Export JSON Backup
         </button>
@@ -368,7 +371,7 @@ export default function SettingsPage() {
         <div>
           <label className="block text-sm text-gray-400 mb-2">Import Backup from JSON</label>
           <div className="flex gap-2 mb-2">
-            <label className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg border border-dashed border-gray-700 text-gray-400 hover:border-gray-500 hover:text-gray-200 cursor-pointer transition-colors text-sm">
+            <label className="min-h-11 flex-1 flex items-center justify-center gap-2 rounded-lg border border-dashed border-gray-700 text-gray-400 hover:border-gray-500 hover:text-gray-200 cursor-pointer transition-colors text-sm">
               <Upload size={14} /> Choose JSON file
               <input type="file" accept=".json" onChange={handleFileImport} className="hidden" />
             </label>
@@ -393,7 +396,7 @@ export default function SettingsPage() {
           <button
             onClick={handleImport}
             disabled={!importText.trim()}
-            className="mt-2 w-full py-2 rounded-lg text-sm bg-gray-800 border border-gray-700 text-gray-300 hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className="mt-2 min-h-11 w-full rounded-lg text-sm bg-gray-800 border border-gray-700 text-gray-300 hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             Import (overwrites all data)
           </button>
@@ -401,6 +404,13 @@ export default function SettingsPage() {
       </div>
 
       {/* 6. Danger Zone */}
+      <div className="glass rounded-xl p-5">
+        <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">Account</h2>
+        <button onClick={handleLogout} className="mt-3 min-h-11 w-full rounded-lg border border-gray-700 px-4 text-sm text-gray-200 transition-colors hover:bg-gray-800">
+          Log out
+        </button>
+      </div>
+
       <div className="glass rounded-xl p-5 border border-rose-500/20">
         <h2 className="text-sm font-semibold text-rose-400 uppercase tracking-wider flex items-center gap-2 mb-3">
           <AlertTriangle size={14} /> Danger Zone
@@ -418,7 +428,7 @@ export default function SettingsPage() {
                   alert('DSA reset complete.');
                 }
               }}
-              className="w-full py-2 rounded-lg text-sm border border-rose-500/30 text-rose-400 hover:bg-rose-500/10 transition-colors"
+              className="min-h-11 w-full rounded-lg text-sm border border-rose-500/30 text-rose-400 hover:bg-rose-500/10 transition-colors"
             >
               Reset DSA Topics to Seed Data
             </button>
@@ -435,7 +445,7 @@ export default function SettingsPage() {
                   alert('Web Dev reset complete.');
                 }
               }}
-              className="w-full py-2 rounded-lg text-sm border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 transition-colors"
+              className="min-h-11 w-full rounded-lg text-sm border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 transition-colors"
             >
               Reset Web Dev Topics to Roadmap Seed Data
             </button>
@@ -478,7 +488,7 @@ function DaySelector({
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-1.5">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 mb-1.5">
         <label className="text-xs font-medium text-gray-300">{label}</label>
         {hint && <span className="text-[11px] text-gray-500">{hint}</span>}
       </div>
@@ -490,7 +500,7 @@ function DaySelector({
               key={day}
               type="button"
               onClick={() => toggleDay(day)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+              className={`min-h-11 min-w-11 px-3 rounded-lg text-xs font-semibold border transition-all ${
                 isSelected
                   ? activeClass
                   : 'bg-gray-900 border-gray-800 text-gray-500 hover:text-gray-300 hover:border-gray-700'
