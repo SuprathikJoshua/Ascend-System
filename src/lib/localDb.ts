@@ -25,6 +25,7 @@ export interface WebDevTopic {
   difficulty: WebDevDifficulty;
   importance: WebDevImportance;
   practical: boolean | 'optional'; // true = yes, false = no, 'optional' = optional
+  practical_action?: string;
   resourceLinks?: string; // JSON array of {label, url}
   status: WebDevStatus;
   notes?: string;
@@ -205,11 +206,12 @@ const DEFAULT_SETTINGS: { key: string; value: string }[] = [
 
 import { WEBDEV_SEED } from './webdevSeed';
 
-let seedPromise: Promise<void> | null = null;
+let seedPromise: Promise<boolean> | null = null;
 
-export function seedIfEmpty(): Promise<void> {
+export function seedIfEmpty(): Promise<boolean> {
   if (seedPromise) return seedPromise;
   seedPromise = (async () => {
+    let practicalActionsBackfilled = false;
     await db.transaction('rw', [db.dsaTopics, db.webdevTopics, db.settings, db.dsaRevisions, db.aiWeeks], async () => {
       // 1. DSA Topics
       const allTopics = await db.dsaTopics.toArray();
@@ -255,6 +257,17 @@ export function seedIfEmpty(): Promise<void> {
         if (toDeleteWd.length > 0) {
           await db.webdevTopics.bulkDelete(toDeleteWd);
         }
+
+        const actionsByName = new Map(WEBDEV_SEED
+          .filter(topic => topic.practical_action)
+          .map(topic => [topic.name, topic.practical_action!]));
+        for (const topic of allWdTopics) {
+          const action = actionsByName.get(topic.name);
+          if (action && (topic.practical === true || topic.practical === 'optional') && topic.practical_action !== action && topic.id !== undefined) {
+            await db.webdevTopics.update(topic.id, { practical_action: action });
+            practicalActionsBackfilled = true;
+          }
+        }
       }
 
       // 3. Settings
@@ -284,6 +297,7 @@ export function seedIfEmpty(): Promise<void> {
         }
       }
     });
+    return practicalActionsBackfilled;
   })();
   return seedPromise;
 }

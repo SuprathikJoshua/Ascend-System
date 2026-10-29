@@ -299,6 +299,11 @@ export default function WebDevPage() {
                                 </span>
                               )}
                             </div>
+                            {topic.practical_action && (
+                              <p className="text-xs text-cyan-300/80 mt-1 truncate" title={`${topic.practical === 'optional' ? 'Optional · ' : ''}Do: ${topic.practical_action}`}>
+                                {topic.practical === 'optional' ? 'Optional · ' : ''}Do: {topic.practical_action}
+                              </p>
+                            )}
                             {topic.startedAt && (
                               <p className="text-xs text-gray-600 mt-0.5">
                                 Started {topic.startedAt}
@@ -339,6 +344,15 @@ export default function WebDevPage() {
                         {/* Expanded: notes, resources, proof */}
                         {isExpanded && (
                           <div className="px-4 pb-4 space-y-3 border-t border-gray-800/30 bg-gray-900/20 pt-3">
+                            {topic.practical_action && (
+                              <div className={`rounded-lg border p-3 ${topic.practical === 'optional' ? 'border-gray-600/50 bg-gray-800/40' : 'border-cyan-500/30 bg-cyan-500/5'}`}>
+                                <p className={`text-xs font-semibold mb-1 ${topic.practical === 'optional' ? 'text-gray-300' : 'text-cyan-300'}`}>
+                                  {topic.practical === 'optional' ? 'Optional · Practical task' : 'Practical task'}
+                                </p>
+                                <p className="text-sm text-gray-200">{topic.practical_action}</p>
+                                <p className="text-xs text-gray-400 mt-2">Done when: proof link added and break/fix note written</p>
+                              </div>
+                            )}
                             {/* Resources */}
                             {resources.length > 0 && (
                               <div>
@@ -372,9 +386,11 @@ export default function WebDevPage() {
                             </div>
 
                             {/* Proof (if practical) */}
-                            {topic.practical === true && (
+                            {(topic.practical === true || (topic.practical === 'optional' && Boolean(topic.practical_action))) && (
                               <div className="space-y-2">
-                                <p className="text-xs text-amber-400 font-medium">⚠ Practical Required — proof needed to mark Done</p>
+                                <p className={`text-xs font-medium ${topic.practical === 'optional' ? 'text-gray-400' : 'text-amber-400'}`}>
+                                  {topic.practical === 'optional' ? 'Optional — proof is not required to mark Done' : '⚠ Practical Required — proof needed to mark Done'}
+                                </p>
                                 <input
                                   type="url"
                                   defaultValue={topic.proofLink ?? ''}

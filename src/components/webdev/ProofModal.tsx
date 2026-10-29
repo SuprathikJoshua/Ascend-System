@@ -24,6 +24,14 @@ export default function ProofModal({ topic, onSave, onClose }: Props) {
     >
       <div className="glass rounded-2xl w-full max-w-md p-6 shadow-2xl border border-amber-500/30">
         <h2 className="text-lg font-bold text-amber-400 mb-1">Proof Required</h2>
+        {topic.practical_action && (
+          <div className="rounded-lg border border-cyan-500/30 bg-cyan-500/5 p-3 mb-4">
+            <p className="text-xs font-semibold text-cyan-300 mb-1">
+              {topic.practical === 'optional' ? 'Optional · Practical task' : 'Practical task'}
+            </p>
+            <p className="text-sm text-gray-200">{topic.practical_action}</p>
+          </div>
+        )}
         <p className="text-sm text-gray-400 mb-4">{topic.name} is marked as Practical Required. Provide proof before marking Done.</p>
         <div className="space-y-3">
           <div>

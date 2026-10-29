@@ -93,8 +93,12 @@ async function write<T>(operation: () => Promise<T>): Promise<T> {
   return result;
 }
 
-export function seedIfEmpty(): Promise<void> {
-  return seedLocalIfEmpty();
+export async function seedIfEmpty(): Promise<void> {
+  const practicalActionsBackfilled = await seedLocalIfEmpty();
+  if (practicalActionsBackfilled) {
+    markStatePending();
+    notifyStorageChanged();
+  }
 }
 
 export async function readAppState(): Promise<Record<string, unknown>> {

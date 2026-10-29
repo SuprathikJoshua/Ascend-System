@@ -1,6 +1,53 @@
 import type { WebDevTopic } from "./localDb";
 
-export const WEBDEV_SEED: Omit<WebDevTopic, "id">[] = [
+const PRACTICAL_ACTIONS: Record<string, string> = {
+  "OS basics: process vs thread, memory management": "small script showing process vs thread behavior",
+  "Git workflows: branching, rebase, resolving conflicts": "Make two branches that edit the same lines, merge to create a conflict, resolve it. Then rebase one branch onto main and resolve again.",
+  "Event loop: phases, microtask vs macrotask, execution order": "write scripts, predict then verify console.log order",
+  "Closures, prototypes, `this` binding": "Write 5 snippets that lose `this` (callback, setTimeout, extracted method) and fix each with bind or an arrow function. Add one closure counter and one prototype chain demo.",
+  "Async evolution: callbacks → promises → async/await; Promise.all/allSettled/race": "Do one task (read 3 files and combine them) in callbacks, promises and async/await. Then show Promise.all vs allSettled with one failing call.",
+  "Error handling: try/catch, unhandled rejections, custom error classes, partial-failure/rollback logic": "Build custom error classes. Crash a script with an unhandled rejection, then add handlers. Write a 3-step operation that fails at step 2 and rolls back step 1.",
+  "Streams & buffers: readable/writable/duplex/transform, backpressure": "pipe a large file, break it on purpose, then fix",
+  "Module systems: CommonJS vs ESM": "Make a small package imported from both CommonJS and ESM. Trigger the require()-of-ESM error and fix it.",
+  "Child processes & worker threads (CPU-bound offloading)": "Block the event loop with a CPU-heavy loop in a server and measure latency. Move it to a worker thread and measure again.",
+  "HTTP protocol deep dive: methods, status codes, headers, keep-alive, HTTP/2 basics": "build a raw HTTP server, no framework",
+  "REST design principles: resource naming, statelessness": "Design CRUD for one resource with correct nouns, methods and status codes. List 3 violations in a bad version and fix them.",
+  "Pagination, filtering, sorting patterns": "Add offset and cursor pagination over 10k rows. Insert rows mid-pagination and show offset skipping or duplicating while cursor does not.",
+  "WebSockets / real-time (Socket.io)": "Build chat rooms with reconnect. Kill the server mid-session and handle the reconnect and missed messages.",
+  "Relational DB fundamentals: normalization, joins, indexes": "Design a 4-table normalized schema, write joins, add an index and show query time before and after.",
+  "Query optimization & reading EXPLAIN plans": "Take a slow query over 100k rows, read EXPLAIN, add an index, compare plans and timing.",
+  "Transactions & ACID": "Build a money transfer inside a transaction. Crash it midway and show the rollback. Remove the transaction and show the corrupted data.",
+  "Isolation levels, optimistic vs pessimistic locking": "simulate a race condition, fix it with locking",
+  "NoSQL data modeling (MongoDB schema design)": "Model one feature two ways (embedded vs referenced) in MongoDB and compare the queries.",
+  "ORM tradeoffs + detecting/fixing N+1 queries": "cause an N+1 bug on purpose, fix with eager loading",
+  "Caching strategy (Redis): cache-aside, write-through, TTL, invalidation": "Add cache-aside with Redis to a slow endpoint and show hit vs miss latency. Update the data, show the stale cache, then fix with invalidation.",
+  "Connection pooling": "Run 100 concurrent queries without a pool, then with one, and compare. Exhaust the pool on purpose and observe.",
+  "Auth patterns: sessions, JWT, OAuth2, SSO": "build JWT auth from scratch once, then with a library",
+  "JWT internals & common mistakes (alg:none, weak secret, missing expiry)": "break your own token, then patch it",
+  "Password security (bcrypt/argon2, salting)": "Hash with bcrypt or argon2, show the same password gives different hashes, compare cost factors, verify a login.",
+  "OWASP Top 10 (SQLi, XSS, CSRF, SSRF, broken access control)": "attack your own toy app, then patch",
+  "Rate limiting algorithms (token bucket, sliding/fixed window)": "Implement fixed window and token bucket. Send a burst and show fixed window's boundary-burst flaw.",
+  "CORS — how it actually works": "Make a page on one origin call an API on another. Trigger the CORS error and a preflight, then fix it with exact origin headers, not *.",
+  "Input validation & sanitization": "Add schema validation (zod) to every endpoint, send malformed and malicious payloads, confirm clean 400s.",
+  "Idempotency & idempotency keys": "implement one on a real endpoint",
+  "Distributed locks (Redis SETNX / Redlock)": "Run two processes updating one counter and show lost updates. Fix with a Redis SET NX lock with TTL. Then let the lock expire mid-work and show the failure.",
+  "Message queues (BullMQ / RabbitMQ / Kafka basics)": "one small queue-based job",
+  "Event-driven architecture & pub/sub": "Publish one event with two independent subscribers. Make one fail and show the other keeps working.",
+  "Horizontal scaling & load balancing": "simulate with 2 processes + nginx locally",
+  "GraphQL basics vs REST tradeoffs": "Build one small GraphQL endpoint for a resource you already have in REST. Fetch the same nested data both ways, count the requests and payload size, and write down one case where each wins.",
+  "Structured logging practices": "Replace console.log with Pino JSON logs that carry a request id. Trace one request across 3 log lines.",
+  "Monitoring & metrics (Prometheus/Grafana basics)": "Expose a /metrics endpoint with a request counter and latency histogram. Run Prometheus locally, chart p95 latency in Grafana, then add load and watch the line move.",
+  "Testing: unit, integration, e2e": "Write unit tests for one function, integration tests for one endpoint with a test DB, and one e2e flow. Introduce a bug and note which layer catches it.",
+  "Load testing (k6 / Artillery)": "Run k6 against one endpoint at rising load and find the breaking point. Fix one bottleneck and rerun.",
+  "Error tracking (Sentry-style tools)": "Add Sentry to one app. Throw a deliberate error, find it in the dashboard with its stack trace, then release a fix and confirm the issue stops recurring.",
+  "Docker fundamentals: image, container, Dockerfile, compose": "containerize an existing project (Tropex/SkillSync)",
+  "CI/CD pipelines (GitHub Actions)": "set up once, reuse the pattern",
+  "Cloud deployment basics (AWS EC2/S3, Railway/Render)": "Deploy the app to Railway or Render with a DB and env vars. Break the deploy with a missing env var and fix it.",
+  "Environment configs (dev/staging/prod separation)": "Separate dev, staging and prod config via env vars. Boot with a missing required variable and show a clear startup error.",
+  "Case studies: URL shortener, rate limiter, chat app, payment system, notification system": "design on paper/whiteboard, walk through out loud",
+};
+
+const WEBDEV_SEED_BASE: Omit<WebDevTopic, "id">[] = [
   {
     "phase": 0,
     "name": "How the internet works (DNS, TCP/IP, HTTP/HTTPS handshake)",
@@ -612,3 +659,8 @@ export const WEBDEV_SEED: Omit<WebDevTopic, "id">[] = [
     "order": 60
   }
 ];
+
+export const WEBDEV_SEED: Omit<WebDevTopic, "id">[] = WEBDEV_SEED_BASE.map(topic => ({
+  ...topic,
+  ...(PRACTICAL_ACTIONS[topic.name] ? { practical_action: PRACTICAL_ACTIONS[topic.name] } : {}),
+}));

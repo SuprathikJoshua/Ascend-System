@@ -469,6 +469,15 @@ export default function DashboardPage() {
                   {nextWebdevTopic ? nextWebdevTopic.name : wdTotal === 0 ? 'No topics yet' : 'All done! 🎉'}
                 </span>
               </div>
+              {nextWebdevTopic?.practical_action && (
+                <div className="flex items-center gap-2">
+                  <span className="w-3.5 shrink-0" />
+                  <span className="text-xs text-gray-500 w-28 shrink-0" />
+                  <span className={`min-w-0 text-xs truncate ${isWebdevDay ? 'text-cyan-300/80' : 'text-gray-600'}`} title={nextWebdevTopic.practical_action}>
+                    {nextWebdevTopic.practical === 'optional' ? 'Optional · ' : ''}Do: {nextWebdevTopic.practical_action}
+                  </span>
+                </div>
+              )}
 
               {/* Phase row */}
               <div className="flex items-center gap-2">

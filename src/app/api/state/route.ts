@@ -13,6 +13,30 @@ function response(body: unknown, status = 200): Response {
   return Response.json(body, { status, headers });
 }
 
+function logStateError(method: 'GET' | 'PUT', error: unknown): void {
+  const parts: string[] = [];
+  const visited = new Set<object>();
+  let current: unknown = error;
+
+  while (current && typeof current === 'object' && !visited.has(current)) {
+    visited.add(current);
+    const details = current as { name?: unknown; message?: unknown; code?: unknown; sourceError?: unknown; cause?: unknown };
+    const name = typeof details.name === 'string' ? details.name : 'Error';
+    const message = typeof details.message === 'string' ? details.message : '';
+    const code = typeof details.code === 'string' ? ` [${details.code}]` : '';
+    parts.push(`${name}${code}${message ? `: ${message}` : ''}`);
+    current = details.sourceError ?? details.cause;
+  }
+
+  if (parts.length === 0) parts.push(String(error));
+  const message = parts.join(' <- ');
+  const databaseUrl = process.env.DATABASE_URL;
+  const sanitized = message
+    .replaceAll(databaseUrl ?? '\0', '[redacted DATABASE_URL]')
+    .replace(/postgres(?:ql)?:\/\/[^\s"'`]+/gi, '[redacted PostgreSQL URL]');
+  console.error(`[api/state] ${method} failed: ${sanitized}`);
+}
+
 function isStateData(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -33,7 +57,8 @@ export async function GET(): Promise<Response> {
     const current = await readCurrentState();
     if (!current) return response({ error: 'state_not_found' }, 404);
     return response({ data: current.data, version: current.version });
-  } catch {
+  } catch (error) {
+    logStateError('GET', error);
     return response({ error: 'state_unavailable' }, 503);
   }
 }
@@ -80,7 +105,8 @@ export async function PUT(request: Request): Promise<Response> {
       data: current?.data ?? null,
       version: current?.version ?? 0,
     }, 409);
-  } catch {
+  } catch (error) {
+    logStateError('PUT', error);
     return response({ error: 'state_unavailable' }, 503);
   }
 }
